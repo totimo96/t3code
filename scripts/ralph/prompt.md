@@ -59,6 +59,10 @@ If all stories are complete and checks pass, reply with:
 
 Otherwise end normally so the next Ralph iteration can pick up the next story.
 
+Do not print full diffs or repeatedly stream the same patch after tool calls. Summarize changed files and check results briefly, then stop.
+
+If a required check fails, fix the failure and rerun the check. If you cannot fix it within this iteration, leave the working tree uncommitted, append a concise blocker note to `scripts/ralph/progress.txt`, and stop without committing.
+
 ## Constraints
 
 - Work on one story per iteration.
