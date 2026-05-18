@@ -19,7 +19,11 @@ import {
   useStore,
 } from "../store";
 import { useTerminalStateStore } from "../terminalStateStore";
-import { buildThreadRouteParams, resolveThreadRouteRef } from "../threadRoutes";
+import {
+  buildThreadRouteParams,
+  resolveThreadRouteRef,
+  threadRoutePathForWorkspaceKind,
+} from "../threadRoutes";
 import { formatWorktreePathForDisplay, getOrphanedWorktreePathForThread } from "../worktreeCleanup";
 import { stackedThreadToast, toastManager } from "../components/ui/toast";
 import { useSettings } from "./useSettings";
@@ -205,7 +209,7 @@ export function useThreadActions() {
           );
           if (fallbackThread) {
             await router.navigate({
-              to: "/$environmentId/$threadId",
+              to: threadRoutePathForWorkspaceKind(fallbackThread.workspaceKind),
               params: buildThreadRouteParams(
                 scopeThreadRef(fallbackThread.environmentId, fallbackThread.id),
               ),

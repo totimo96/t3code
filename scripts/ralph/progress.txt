@@ -36,3 +36,32 @@ Started: 2026-05-18
   - Root `bun run test <file>` is not a valid targeted test entrypoint because the root script delegates to Turbo; run package-local test scripts with `bun run --cwd <package> test <file>`.
 
 ---
+
+## 2026-05-18 21:39 +03:00 - US-002
+
+- Added a direct Design Route at `/design/$environmentId/$threadId`.
+- Reused `ChatView` for the first Design Thread surface with a design-specific empty state.
+- Added route-aware thread navigation so Design Workspace threads open through the Design Route from Sidebar, Command Palette, and fallback thread actions.
+- Added a route helper for workspace-kind-specific thread paths and covered it in `threadRoutes.test.ts`.
+- Files changed:
+  - `apps/web/src/components/ChatView.tsx`
+  - `apps/web/src/components/CommandPalette.logic.ts`
+  - `apps/web/src/components/CommandPalette.tsx`
+  - `apps/web/src/components/Sidebar.tsx`
+  - `apps/web/src/hooks/useThreadActions.ts`
+  - `apps/web/src/routes/design.$environmentId.$threadId.tsx`
+  - `apps/web/src/routeTree.gen.ts`
+  - `apps/web/src/threadRoutes.ts`
+  - `apps/web/src/threadRoutes.test.ts`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- Checks run and result:
+  - `bun fmt`: passed
+  - `bun lint`: passed with existing warnings
+  - `bun typecheck`: passed
+  - `bun run --cwd apps/web test src/threadRoutes.test.ts`: passed
+- Learnings for future iterations:
+  - Use `threadRoutePathForWorkspaceKind` when navigating to an existing thread from generic UI surfaces.
+  - Ralph/Codex currently tends to repeat large diffs; keep running one iteration at a time and stabilize the slice locally if it loops.
+
+---

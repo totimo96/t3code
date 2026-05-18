@@ -98,6 +98,7 @@ import {
   buildThreadRouteParams,
   resolveThreadRouteRef,
   resolveThreadRouteTarget,
+  threadRoutePathForWorkspaceKind,
 } from "../threadRoutes";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { formatRelativeTimeLabel } from "../timestampFormat";
@@ -296,10 +297,10 @@ interface SidebarThreadRowProps {
   confirmArchiveButtonRefs: React.RefObject<Map<string, HTMLButtonElement>>;
   handleThreadClick: (
     event: React.MouseEvent,
-    threadRef: ScopedThreadRef,
+    thread: SidebarThreadSummary,
     orderedProjectThreadKeys: readonly string[],
   ) => void;
-  navigateToThread: (threadRef: ScopedThreadRef) => void;
+  navigateToThread: (thread: SidebarThreadSummary) => void;
   handleMultiSelectContextMenu: (position: { x: number; y: number }) => Promise<void>;
   handleThreadContextMenu: (
     threadRef: ScopedThreadRef,
@@ -415,17 +416,17 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   );
   const handleRowClick = useCallback(
     (event: React.MouseEvent) => {
-      handleThreadClick(event, threadRef, orderedProjectThreadKeys);
+      handleThreadClick(event, thread, orderedProjectThreadKeys);
     },
-    [handleThreadClick, orderedProjectThreadKeys, threadRef],
+    [handleThreadClick, orderedProjectThreadKeys, thread],
   );
   const handleRowKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
-      navigateToThread(threadRef);
+      navigateToThread(thread);
     },
-    [navigateToThread, threadRef],
+    [navigateToThread, thread],
   );
   const handleRowContextMenu = useCallback(
     (event: React.MouseEvent) => {
@@ -746,10 +747,10 @@ interface SidebarProjectThreadListProps {
   attachThreadListAutoAnimateRef: (node: HTMLElement | null) => void;
   handleThreadClick: (
     event: React.MouseEvent,
-    threadRef: ScopedThreadRef,
+    thread: SidebarThreadSummary,
     orderedProjectThreadKeys: readonly string[],
   ) => void;
-  navigateToThread: (threadRef: ScopedThreadRef) => void;
+  navigateToThread: (thread: SidebarThreadSummary) => void;
   handleMultiSelectContextMenu: (position: { x: number; y: number }) => Promise<void>;
   handleThreadContextMenu: (
     threadRef: ScopedThreadRef,
@@ -1539,7 +1540,8 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
   );
 
   const navigateToThread = useCallback(
-    (threadRef: ScopedThreadRef) => {
+    (thread: SidebarThreadSummary) => {
+      const threadRef = scopeThreadRef(thread.environmentId, thread.id);
       if (useThreadSelectionStore.getState().selectedThreadKeys.size > 0) {
         clearSelection();
       }
@@ -1548,7 +1550,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
         setOpenMobile(false);
       }
       void router.navigate({
-        to: "/$environmentId/$threadId",
+        to: threadRoutePathForWorkspaceKind(thread.workspaceKind),
         params: buildThreadRouteParams(threadRef),
       });
     },
@@ -1558,9 +1560,10 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
   const handleThreadClick = useCallback(
     (
       event: React.MouseEvent,
-      threadRef: ScopedThreadRef,
+      thread: SidebarThreadSummary,
       orderedProjectThreadKeys: readonly string[],
     ) => {
+      const threadRef = scopeThreadRef(thread.environmentId, thread.id);
       const isMac = isMacPlatform(navigator.platform);
       const isModClick = isMac ? event.metaKey : event.ctrlKey;
       const isShiftClick = event.shiftKey;
@@ -1587,7 +1590,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
         setOpenMobile(false);
       }
       void router.navigate({
-        to: "/$environmentId/$threadId",
+        to: threadRoutePathForWorkspaceKind(thread.workspaceKind),
         params: buildThreadRouteParams(threadRef),
       });
     },
@@ -2998,7 +3001,8 @@ export default function Sidebar() {
     shortcutLabelForCommand(keybindings, "chat.new", newThreadShortcutLabelOptions);
 
   const navigateToThread = useCallback(
-    (threadRef: ScopedThreadRef) => {
+    (thread: SidebarThreadSummary) => {
+      const threadRef = scopeThreadRef(thread.environmentId, thread.id);
       if (useThreadSelectionStore.getState().selectedThreadKeys.size > 0) {
         clearSelection();
       }
@@ -3007,7 +3011,7 @@ export default function Sidebar() {
         setOpenMobile(false);
       }
       void navigate({
-        to: "/$environmentId/$threadId",
+        to: threadRoutePathForWorkspaceKind(thread.workspaceKind),
         params: buildThreadRouteParams(threadRef),
       });
     },
@@ -3271,7 +3275,7 @@ export default function Sidebar() {
 
         event.preventDefault();
         event.stopPropagation();
-        navigateToThread(scopeThreadRef(targetThread.environmentId, targetThread.id));
+        navigateToThread(targetThread);
         return;
       }
 
@@ -3291,7 +3295,7 @@ export default function Sidebar() {
 
       event.preventDefault();
       event.stopPropagation();
-      navigateToThread(scopeThreadRef(targetThread.environmentId, targetThread.id));
+      navigateToThread(targetThread);
     };
 
     window.addEventListener("keydown", onWindowKeyDown);

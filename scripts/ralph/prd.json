@@ -32,7 +32,7 @@
         "bun fmt, bun lint, and bun typecheck pass."
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Blocked by US-001. Source issue: docs/design-workspace-issues/002-design-route-empty-thread.md"
     },
     {

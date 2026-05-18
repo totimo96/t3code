@@ -1,5 +1,10 @@
 import { scopeThreadRef } from "@t3tools/client-runtime";
-import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@t3tools/contracts";
+import type {
+  EnvironmentId,
+  ScopedThreadRef,
+  ThreadId,
+  ThreadWorkspaceKind,
+} from "@t3tools/contracts";
 import type { DraftId } from "./composerDraftStore";
 
 export type ThreadRouteTarget =
@@ -20,6 +25,14 @@ export function buildThreadRouteParams(ref: ScopedThreadRef): {
     environmentId: ref.environmentId,
     threadId: ref.threadId,
   };
+}
+
+export function threadRoutePathForWorkspaceKind(
+  workspaceKind: ThreadWorkspaceKind | null | undefined,
+): "/$environmentId/$threadId" | "/design/$environmentId/$threadId" {
+  return (workspaceKind ?? "coding") === "design"
+    ? "/design/$environmentId/$threadId"
+    : "/$environmentId/$threadId";
 }
 
 export function buildDraftThreadRouteParams(draftId: DraftId): {

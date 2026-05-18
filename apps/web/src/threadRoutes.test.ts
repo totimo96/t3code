@@ -8,6 +8,7 @@ import {
   buildThreadRouteParams,
   resolveThreadRouteRef,
   resolveThreadRouteTarget,
+  threadRoutePathForWorkspaceKind,
 } from "./threadRoutes";
 
 describe("threadRoutes", () => {
@@ -63,5 +64,11 @@ describe("threadRoutes", () => {
       kind: "draft",
       draftId: "draft-1",
     });
+  });
+
+  it("chooses the canonical route path for each thread workspace kind", () => {
+    expect(threadRoutePathForWorkspaceKind("coding")).toBe("/$environmentId/$threadId");
+    expect(threadRoutePathForWorkspaceKind(undefined)).toBe("/$environmentId/$threadId");
+    expect(threadRoutePathForWorkspaceKind("design")).toBe("/design/$environmentId/$threadId");
   });
 });

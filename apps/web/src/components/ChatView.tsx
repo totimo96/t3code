@@ -173,6 +173,7 @@ import {
   revokeBlobPreviewUrl,
   revokeUserMessagePreviewUrls,
   shouldWriteThreadErrorToCurrentServerThread,
+  threadHasStarted,
   waitForStartedServerThread,
 } from "./ChatView.logic";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
@@ -341,6 +342,7 @@ type ChatViewProps =
       threadId: ThreadId;
       onDiffPanelOpen?: () => void;
       reserveTitleBarControlInset?: boolean;
+      workspaceSurface?: "chat" | "design";
       routeKind: "server";
       draftId?: never;
     }
@@ -349,6 +351,7 @@ type ChatViewProps =
       threadId: ThreadId;
       onDiffPanelOpen?: () => void;
       reserveTitleBarControlInset?: boolean;
+      workspaceSurface?: "chat" | "design";
       routeKind: "draft";
       draftId: DraftId;
     };
@@ -611,6 +614,7 @@ export default function ChatView(props: ChatViewProps) {
     routeKind,
     onDiffPanelOpen,
     reserveTitleBarControlInset = true,
+    workspaceSurface = "chat",
   } = props;
   const draftId = routeKind === "draft" ? props.draftId : null;
   const routeThreadRef = useMemo(
@@ -3553,31 +3557,48 @@ export default function ChatView(props: ChatViewProps) {
           {/* Messages Wrapper */}
           <div className="relative flex min-h-0 flex-1 flex-col">
             {/* Messages — LegendList handles virtualization and scrolling internally */}
-            <MessagesTimeline
-              key={activeThread.id}
-              isWorking={isWorking}
-              activeTurnInProgress={isWorking || !latestTurnSettled}
-              activeTurnId={activeLatestTurn?.turnId ?? null}
-              activeTurnStartedAt={activeWorkStartedAt}
-              listRef={legendListRef}
-              timelineEntries={timelineEntries}
-              completionDividerBeforeEntryId={completionDividerBeforeEntryId}
-              completionSummary={completionSummary}
-              turnDiffSummaryByAssistantMessageId={turnDiffSummaryByAssistantMessageId}
-              activeThreadEnvironmentId={activeThread.environmentId}
-              routeThreadKey={routeThreadKey}
-              onOpenTurnDiff={onOpenTurnDiff}
-              revertTurnCountByUserMessageId={revertTurnCountByUserMessageId}
-              onRevertUserMessage={onRevertUserMessage}
-              isRevertingCheckpoint={isRevertingCheckpoint}
-              onImageExpand={onExpandTimelineImage}
-              markdownCwd={gitCwd ?? undefined}
-              resolvedTheme={resolvedTheme}
-              timestampFormat={timestampFormat}
-              workspaceRoot={activeWorkspaceRoot}
-              skills={activeProviderStatus?.skills ?? EMPTY_PROVIDER_SKILLS}
-              onIsAtEndChange={onIsAtEndChange}
-            />
+            {workspaceSurface === "design" && !threadHasStarted(activeThread) ? (
+              <div className="flex min-h-0 flex-1 items-center justify-center bg-[linear-gradient(180deg,color-mix(in_srgb,var(--background)_96%,var(--muted))_0%,var(--background)_100%)] px-6 py-8">
+                <div className="flex min-h-[18rem] w-full max-w-4xl flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-card/20 px-6 text-center shadow-sm/5">
+                  <div className="mb-4 flex h-10 w-16 items-center justify-center rounded-md border border-border/70 bg-background/80">
+                    <span className="h-5 w-9 rounded-sm border border-muted-foreground/35 bg-muted/40" />
+                  </div>
+                  <h2 className="text-lg font-medium tracking-normal text-foreground">
+                    Start a design artifact
+                  </h2>
+                  <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+                    Describe the HTML design you want to create. The first artifact will appear on
+                    this canvas once it is saved.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <MessagesTimeline
+                key={activeThread.id}
+                isWorking={isWorking}
+                activeTurnInProgress={isWorking || !latestTurnSettled}
+                activeTurnId={activeLatestTurn?.turnId ?? null}
+                activeTurnStartedAt={activeWorkStartedAt}
+                listRef={legendListRef}
+                timelineEntries={timelineEntries}
+                completionDividerBeforeEntryId={completionDividerBeforeEntryId}
+                completionSummary={completionSummary}
+                turnDiffSummaryByAssistantMessageId={turnDiffSummaryByAssistantMessageId}
+                activeThreadEnvironmentId={activeThread.environmentId}
+                routeThreadKey={routeThreadKey}
+                onOpenTurnDiff={onOpenTurnDiff}
+                revertTurnCountByUserMessageId={revertTurnCountByUserMessageId}
+                onRevertUserMessage={onRevertUserMessage}
+                isRevertingCheckpoint={isRevertingCheckpoint}
+                onImageExpand={onExpandTimelineImage}
+                markdownCwd={gitCwd ?? undefined}
+                resolvedTheme={resolvedTheme}
+                timestampFormat={timestampFormat}
+                workspaceRoot={activeWorkspaceRoot}
+                skills={activeProviderStatus?.skills ?? EMPTY_PROVIDER_SKILLS}
+                onIsAtEndChange={onIsAtEndChange}
+              />
+            )}
 
             {/* scroll to bottom pill — shown when user has scrolled away from the bottom */}
             {showScrollToBottom && (
