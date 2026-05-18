@@ -14,6 +14,7 @@ import type {
   ProviderDriverKind,
   ProviderInstanceId,
   CheckpointRef,
+  DesignBrief,
   ProviderInteractionMode,
   RuntimeMode,
   ThreadWorkspaceKind,
@@ -106,6 +107,7 @@ export interface Thread {
   workspaceKind?: ThreadWorkspaceKind | undefined;
   session: ThreadSession | null;
   messages: ChatMessage[];
+  designBrief?: DesignBrief | null;
   proposedPlans: ProposedPlan[];
   error: string | null;
   createdAt: string;

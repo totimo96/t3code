@@ -207,6 +207,85 @@ type EnvironmentUnavailableState = {
   readonly connectionState: "connecting" | "disconnected" | "error";
 };
 
+function appendDesignBriefToPrompt(prompt: string, designBriefMarkdown: string | null): string {
+  const trimmedBrief = designBriefMarkdown?.trim();
+  if (!trimmedBrief) {
+    return prompt;
+  }
+  return [
+    "Design Brief:",
+    trimmedBrief,
+    "",
+    "User Request:",
+    prompt.trim().length > 0 ? prompt : IMAGE_ONLY_BOOTSTRAP_PROMPT,
+  ].join("\n");
+}
+
+function DesignBriefPanel({
+  environmentId,
+  thread,
+}: {
+  readonly environmentId: EnvironmentId;
+  readonly thread: Thread;
+}) {
+  const [draftMarkdown, setDraftMarkdown] = useState(thread.designBrief?.markdown ?? "");
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraftMarkdown(thread.designBrief?.markdown ?? "");
+    setError(null);
+  }, [thread.designBrief?.markdown, thread.id]);
+
+  const persistedMarkdown = thread.designBrief?.markdown ?? "";
+  const hasChanges = draftMarkdown !== persistedMarkdown;
+
+  const saveBrief = useCallback(async () => {
+    const api = readEnvironmentApi(environmentId);
+    if (!api || isSaving || !hasChanges) {
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    try {
+      await api.orchestration.dispatchCommand({
+        type: "design.brief.update",
+        commandId: newCommandId(),
+        threadId: thread.id,
+        markdown: draftMarkdown,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save design brief.");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [draftMarkdown, environmentId, hasChanges, isSaving, thread.id]);
+
+  return (
+    <aside className="hidden w-80 shrink-0 border-l border-border bg-background/95 p-4 lg:flex lg:flex-col">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-sm font-medium text-foreground">Design Brief</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Version {thread.designBrief?.version ?? 0}
+          </p>
+        </div>
+        <Button size="xs" disabled={!hasChanges || isSaving} onClick={() => void saveBrief()}>
+          {isSaving ? "Saving" : "Save"}
+        </Button>
+      </div>
+      <textarea
+        className="mt-4 min-h-0 flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm leading-6 text-foreground outline-none ring-ring/24 placeholder:text-muted-foreground focus:border-ring focus:ring-[3px]"
+        value={draftMarkdown}
+        onChange={(event) => setDraftMarkdown(event.target.value)}
+        placeholder="Goals, constraints, tone, layout notes..."
+      />
+      {error ? <p className="mt-3 text-xs leading-5 text-destructive">{error}</p> : null}
+    </aside>
+  );
+}
+
 type ThreadPlanCatalogEntry = Pick<Thread, "id" | "proposedPlans">;
 
 function useThreadPlanCatalog(threadIds: readonly ThreadId[]): ThreadPlanCatalogEntry[] {
@@ -2713,10 +2792,17 @@ export default function ChatView(props: ChatViewProps) {
 
     const composerImagesSnapshot = [...composerImages];
     const composerTerminalContextsSnapshot = [...sendableComposerTerminalContexts];
-    const messageTextForSend = appendTerminalContextsToPrompt(
+    const messageTextWithTerminalContexts = appendTerminalContextsToPrompt(
       promptForSend,
       composerTerminalContextsSnapshot,
     );
+    const messageTextForSend =
+      workspaceSurface === "design"
+        ? appendDesignBriefToPrompt(
+            messageTextWithTerminalContexts,
+            activeThread.designBrief?.markdown ?? null,
+          )
+        : messageTextWithTerminalContexts;
     const messageIdForSend = newMessageId();
     const messageCreatedAt = new Date().toISOString();
     const outgoingMessageText = formatOutgoingPrompt({
@@ -3756,6 +3842,9 @@ export default function ChatView(props: ChatViewProps) {
             mode="sidebar"
             onClose={closePlanSidebar}
           />
+        ) : null}
+        {workspaceSurface === "design" ? (
+          <DesignBriefPanel environmentId={environmentId} thread={activeThread} />
         ) : null}
       </div>
       {/* end horizontal flex container */}

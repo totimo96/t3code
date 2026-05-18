@@ -48,7 +48,7 @@
         "bun fmt, bun lint, and bun typecheck pass."
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Blocked by US-002. Source issue: docs/design-workspace-issues/003-versioned-design-brief.md"
     },
     {

@@ -173,6 +173,9 @@ function makeState(thread: Thread): AppState {
         thread.turnDiffSummaries.map((summary) => [summary.turnId, summary] as const),
       ) as EnvironmentState["turnDiffSummaryByThreadId"][ThreadId],
     },
+    designBriefByThreadId: {
+      [thread.id]: thread.designBrief ?? null,
+    },
     sidebarThreadSummaryById: {},
     bootstrapComplete: true,
   };
@@ -198,6 +201,7 @@ function makeEmptyState(overrides: Partial<AppState & EnvironmentState> = {}): A
     proposedPlanByThreadId: {},
     turnDiffIdsByThreadId: {},
     turnDiffSummaryByThreadId: {},
+    designBriefByThreadId: {},
     sidebarThreadSummaryById: {},
     bootstrapComplete: true,
   };
@@ -459,6 +463,33 @@ describe("incremental orchestration updates", () => {
     );
 
     expect(localEnvironmentStateOf(next).bootstrapComplete).toBe(false);
+  });
+
+  it("applies design brief updates to thread detail state", () => {
+    const state = makeState(makeThread());
+    const updatedAt = "2026-02-27T00:00:01.000Z";
+
+    const next = applyOrchestrationEvent(
+      state,
+      makeEvent("design.brief-updated", {
+        threadId: ThreadId.make("thread-1"),
+        markdown: "# Landing\nUse a calm dashboard layout.",
+        version: 1,
+        updatedAt,
+      }),
+      localEnvironmentId,
+    );
+
+    expect(
+      selectThreadByRef(next, scopeThreadRef(localEnvironmentId, ThreadId.make("thread-1"))),
+    ).toMatchObject({
+      designBrief: {
+        markdown: "# Landing\nUse a calm dashboard layout.",
+        version: 1,
+        updatedAt,
+      },
+      updatedAt,
+    });
   });
 
   it("preserves state identity for no-op project and thread deletes", () => {

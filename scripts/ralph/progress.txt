@@ -65,3 +65,31 @@ Started: 2026-05-18
   - Ralph/Codex currently tends to repeat large diffs; keep running one iteration at a time and stabilize the slice locally if it loops.
 
 ---
+
+## 2026-05-18 22:31 +03:00 - US-003
+
+- Added a versioned Design Brief command/event path through orchestration contracts, decider, projector, and projection snapshots.
+- Added a persisted `projection_design_briefs` table and projection repository.
+- Added Design Brief detail state in the web store and a Design Workspace side panel for viewing/editing the brief.
+- Future Design Workspace sends include the current Design Brief as prompt context without changing existing messages/artifacts.
+- Files changed:
+  - `packages/contracts/src/orchestration.ts`
+  - `apps/server/src/orchestration/*`
+  - `apps/server/src/persistence/*`
+  - `apps/web/src/components/ChatView.tsx`
+  - `apps/web/src/store.ts`
+  - `apps/web/src/threadDerivation.ts`
+  - `apps/web/src/types.ts`
+  - `apps/server/src/orchestration/projector.test.ts`
+  - `apps/web/src/store.test.ts`
+- Checks run and result:
+  - `bun fmt`: passed
+  - `bun lint`: passed with existing warnings
+  - `bun typecheck`: passed
+  - `bun run --cwd apps/server test src/orchestration/projector.test.ts`: passed
+  - `bun run --cwd apps/web test src/store.test.ts`: passed
+- Learnings for future iterations:
+  - Detail-only thread state needs a dedicated web-store slice when it is not part of thread shell state.
+  - Projection snapshot sequence must include new required projectors when snapshot correctness depends on them.
+
+---

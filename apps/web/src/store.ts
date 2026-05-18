@@ -78,6 +78,7 @@ export interface EnvironmentState {
   proposedPlanByThreadId: Record<ThreadId, Record<string, ProposedPlan>>;
   turnDiffIdsByThreadId: Record<ThreadId, TurnId[]>;
   turnDiffSummaryByThreadId: Record<ThreadId, Record<TurnId, TurnDiffSummary>>;
+  designBriefByThreadId: Record<ThreadId, Thread["designBrief"]>;
 
   // ---------------------------------------------------------------------------
   // Sidebar summary — written ONLY by the shell stream
@@ -112,6 +113,7 @@ const initialEnvironmentState: EnvironmentState = {
   proposedPlanByThreadId: {},
   turnDiffIdsByThreadId: {},
   turnDiffSummaryByThreadId: {},
+  designBriefByThreadId: {},
   sidebarThreadSummaryById: {},
   bootstrapComplete: false,
 };
@@ -244,6 +246,7 @@ function mapThread(thread: OrchestrationThread, environmentId: EnvironmentId): T
     workspaceKind: thread.workspaceKind,
     session: thread.session ? mapSession(thread.session) : null,
     messages: thread.messages.map((message) => mapMessage(environmentId, message)),
+    designBrief: thread.designBrief ?? null,
     proposedPlans: thread.proposedPlans.map(mapProposedPlan),
     error: sanitizeThreadErrorMessage(thread.session?.lastError),
     createdAt: thread.createdAt,
@@ -684,6 +687,16 @@ function writeThreadState(
     };
   }
 
+  if (previousThread?.designBrief !== nextThread.designBrief) {
+    nextState = {
+      ...nextState,
+      designBriefByThreadId: {
+        ...nextState.designBriefByThreadId,
+        [nextThread.id]: nextThread.designBrief ?? null,
+      },
+    };
+  }
+
   return nextState;
 }
 
@@ -812,6 +825,7 @@ function removeThreadState(state: EnvironmentState, threadId: ThreadId): Environ
   const { [threadId]: _removedTurnDiffIds, ...turnDiffIdsByThreadId } = state.turnDiffIdsByThreadId;
   const { [threadId]: _removedTurnDiffs, ...turnDiffSummaryByThreadId } =
     state.turnDiffSummaryByThreadId;
+  const { [threadId]: _removedDesignBrief, ...designBriefByThreadId } = state.designBriefByThreadId;
   const { [threadId]: _removedSidebarSummary, ...sidebarThreadSummaryById } =
     state.sidebarThreadSummaryById;
 
@@ -830,6 +844,7 @@ function removeThreadState(state: EnvironmentState, threadId: ThreadId): Environ
     proposedPlanByThreadId,
     turnDiffIdsByThreadId,
     turnDiffSummaryByThreadId,
+    designBriefByThreadId,
     sidebarThreadSummaryById,
   };
 }
@@ -1112,6 +1127,7 @@ function syncEnvironmentShellSnapshot(
       state.turnDiffSummaryByThreadId,
       nextThreadIds,
     ),
+    designBriefByThreadId: retainThreadScopedRecord(state.designBriefByThreadId, nextThreadIds),
     bootstrapComplete: true,
   };
 
@@ -1273,6 +1289,7 @@ function applyEnvironmentOrchestrationEvent(
           archivedAt: null,
           deletedAt: null,
           messages: [],
+          designBrief: null,
           proposedPlans: [],
           activities: [],
           checkpoints: [],
@@ -1325,6 +1342,17 @@ function applyEnvironmentOrchestrationEvent(
       return updateThreadState(state, event.payload.threadId, (thread) => ({
         ...thread,
         interactionMode: event.payload.interactionMode,
+        updatedAt: event.payload.updatedAt,
+      }));
+
+    case "design.brief-updated":
+      return updateThreadState(state, event.payload.threadId, (thread) => ({
+        ...thread,
+        designBrief: {
+          markdown: event.payload.markdown,
+          version: event.payload.version,
+          updatedAt: event.payload.updatedAt,
+        },
         updatedAt: event.payload.updatedAt,
       }));
 
