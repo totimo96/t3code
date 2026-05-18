@@ -93,6 +93,7 @@ describe("orchestration projector", () => {
         deletedAt: null,
         messages: [],
         designBrief: null,
+        designArtifact: null,
         proposedPlans: [],
         activities: [],
         checkpoints: [],
@@ -158,6 +159,145 @@ describe("orchestration projector", () => {
       updatedAt,
     });
     expect(next.threads[0]?.messages).toEqual([]);
+  });
+
+  it("applies design.artifact-updated events and bumps version on successive updates", async () => {
+    const now = "2026-01-01T00:00:00.000Z";
+    const firstUpdate = "2026-01-01T00:00:05.000Z";
+    const secondUpdate = "2026-01-01T00:00:09.000Z";
+    const afterCreate = await Effect.runPromise(
+      projectEvent(
+        createEmptyReadModel(now),
+        makeEvent({
+          sequence: 1,
+          type: "thread.created",
+          aggregateKind: "thread",
+          aggregateId: "thread-1",
+          occurredAt: now,
+          commandId: "cmd-thread-create",
+          payload: {
+            threadId: "thread-1",
+            projectId: "project-1",
+            title: "demo",
+            modelSelection: {
+              provider: ProviderDriverKind.make("codex"),
+              model: "gpt-5-codex",
+            },
+            runtimeMode: "full-access",
+            branch: null,
+            worktreePath: null,
+            createdAt: now,
+            updatedAt: now,
+          },
+        }),
+      ),
+    );
+
+    const afterFirstArtifact = await Effect.runPromise(
+      projectEvent(
+        afterCreate,
+        makeEvent({
+          sequence: 2,
+          type: "design.artifact-updated",
+          aggregateKind: "thread",
+          aggregateId: "thread-1",
+          occurredAt: firstUpdate,
+          commandId: "cmd-artifact-1",
+          payload: {
+            threadId: "thread-1",
+            html: "<!doctype html><html><body><h1>v1</h1></body></html>",
+            version: 1,
+            updatedAt: firstUpdate,
+          },
+        }),
+      ),
+    );
+
+    expect(afterFirstArtifact.threads[0]?.designArtifact).toEqual({
+      html: "<!doctype html><html><body><h1>v1</h1></body></html>",
+      version: 1,
+      updatedAt: firstUpdate,
+    });
+    expect(afterFirstArtifact.threads[0]?.messages).toEqual([]);
+
+    const afterSecondArtifact = await Effect.runPromise(
+      projectEvent(
+        afterFirstArtifact,
+        makeEvent({
+          sequence: 3,
+          type: "design.artifact-updated",
+          aggregateKind: "thread",
+          aggregateId: "thread-1",
+          occurredAt: secondUpdate,
+          commandId: "cmd-artifact-2",
+          payload: {
+            threadId: "thread-1",
+            html: "<!doctype html><html><body><h1>v2</h1></body></html>",
+            version: 2,
+            updatedAt: secondUpdate,
+          },
+        }),
+      ),
+    );
+
+    expect(afterSecondArtifact.threads[0]?.designArtifact).toEqual({
+      html: "<!doctype html><html><body><h1>v2</h1></body></html>",
+      version: 2,
+      updatedAt: secondUpdate,
+    });
+  });
+
+  it("rejects design.artifact-updated payloads that fail runtime decoding", async () => {
+    const now = "2026-01-01T00:00:00.000Z";
+    const afterCreate = await Effect.runPromise(
+      projectEvent(
+        createEmptyReadModel(now),
+        makeEvent({
+          sequence: 1,
+          type: "thread.created",
+          aggregateKind: "thread",
+          aggregateId: "thread-1",
+          occurredAt: now,
+          commandId: "cmd-thread-create",
+          payload: {
+            threadId: "thread-1",
+            projectId: "project-1",
+            title: "demo",
+            modelSelection: {
+              provider: ProviderDriverKind.make("codex"),
+              model: "gpt-5-codex",
+            },
+            runtimeMode: "full-access",
+            branch: null,
+            worktreePath: null,
+            createdAt: now,
+            updatedAt: now,
+          },
+        }),
+      ),
+    );
+
+    await expect(
+      Effect.runPromise(
+        projectEvent(
+          afterCreate,
+          makeEvent({
+            sequence: 2,
+            type: "design.artifact-updated",
+            aggregateKind: "thread",
+            aggregateId: "thread-1",
+            occurredAt: "2026-01-01T00:00:05.000Z",
+            commandId: "cmd-artifact-bad",
+            payload: {
+              threadId: "thread-1",
+              // missing html
+              version: 1,
+              updatedAt: "2026-01-01T00:00:05.000Z",
+            },
+          }),
+        ),
+      ),
+    ).rejects.toBeDefined();
   });
 
   it("fails when event payload cannot be decoded by runtime schema", async () => {

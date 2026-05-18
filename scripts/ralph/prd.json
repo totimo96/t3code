@@ -64,7 +64,7 @@
         "bun fmt, bun lint, and bun typecheck pass."
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Blocked by US-002. Source issue: docs/design-workspace-issues/004-artifact-store-sandboxed-canvas.md"
     },
     {

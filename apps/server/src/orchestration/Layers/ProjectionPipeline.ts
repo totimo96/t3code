@@ -16,6 +16,7 @@ import { toPersistenceSqlError, type ProjectionRepositoryError } from "../../per
 import { OrchestrationEventStore } from "../../persistence/Services/OrchestrationEventStore.ts";
 import { ProjectionPendingApprovalRepository } from "../../persistence/Services/ProjectionPendingApprovals.ts";
 import { ProjectionDesignBriefRepository } from "../../persistence/Services/ProjectionDesignBriefs.ts";
+import { ProjectionDesignArtifactRepository } from "../../persistence/Services/ProjectionDesignArtifacts.ts";
 import { ProjectionProjectRepository } from "../../persistence/Services/ProjectionProjects.ts";
 import { ProjectionStateRepository } from "../../persistence/Services/ProjectionState.ts";
 import { ProjectionThreadActivityRepository } from "../../persistence/Services/ProjectionThreadActivities.ts";
@@ -36,6 +37,7 @@ import {
 import { ProjectionThreadRepository } from "../../persistence/Services/ProjectionThreads.ts";
 import { ProjectionPendingApprovalRepositoryLive } from "../../persistence/Layers/ProjectionPendingApprovals.ts";
 import { ProjectionDesignBriefRepositoryLive } from "../../persistence/Layers/ProjectionDesignBriefs.ts";
+import { ProjectionDesignArtifactRepositoryLive } from "../../persistence/Layers/ProjectionDesignArtifacts.ts";
 import { ProjectionProjectRepositoryLive } from "../../persistence/Layers/ProjectionProjects.ts";
 import { ProjectionStateRepositoryLive } from "../../persistence/Layers/ProjectionState.ts";
 import { ProjectionThreadActivityRepositoryLive } from "../../persistence/Layers/ProjectionThreadActivities.ts";
@@ -67,6 +69,7 @@ export const ORCHESTRATION_PROJECTOR_NAMES = {
   checkpoints: "projection.checkpoints",
   pendingApprovals: "projection.pending-approvals",
   designBriefs: "projection.design-briefs",
+  designArtifacts: "projection.design-artifacts",
 } as const;
 
 type ProjectorName =
@@ -460,6 +463,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
     const projectionTurnRepository = yield* ProjectionTurnRepository;
     const projectionPendingApprovalRepository = yield* ProjectionPendingApprovalRepository;
     const projectionDesignBriefRepository = yield* ProjectionDesignBriefRepository;
+    const projectionDesignArtifactRepository = yield* ProjectionDesignArtifactRepository;
 
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -696,7 +700,8 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
         case "thread.activity-appended":
         case "thread.approval-response-requested":
         case "thread.user-input-response-requested":
-        case "design.brief-updated": {
+        case "design.brief-updated":
+        case "design.artifact-updated": {
           const existingRow = yield* projectionThreadRepository.getById({
             threadId: event.payload.threadId,
           });
@@ -796,6 +801,21 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
       yield* projectionDesignBriefRepository.upsert({
         threadId: event.payload.threadId,
         markdown: event.payload.markdown,
+        version: event.payload.version,
+        updatedAt: event.payload.updatedAt,
+      });
+    });
+
+    const applyDesignArtifactsProjection: ProjectorDefinition["apply"] = Effect.fn(
+      "applyDesignArtifactsProjection",
+    )(function* (event, _attachmentSideEffects) {
+      if (event.type !== "design.artifact-updated") {
+        return;
+      }
+
+      yield* projectionDesignArtifactRepository.upsert({
+        threadId: event.payload.threadId,
+        html: event.payload.html,
         version: event.payload.version,
         updatedAt: event.payload.updatedAt,
       });
@@ -1421,6 +1441,10 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
         apply: applyDesignBriefsProjection,
       },
       {
+        name: ORCHESTRATION_PROJECTOR_NAMES.designArtifacts,
+        apply: applyDesignArtifactsProjection,
+      },
+      {
         name: ORCHESTRATION_PROJECTOR_NAMES.threads,
         apply: applyThreadsProjection,
       },
@@ -1527,5 +1551,6 @@ export const OrchestrationProjectionPipelineLive = Layer.effect(
   Layer.provideMerge(ProjectionTurnRepositoryLive),
   Layer.provideMerge(ProjectionPendingApprovalRepositoryLive),
   Layer.provideMerge(ProjectionDesignBriefRepositoryLive),
+  Layer.provideMerge(ProjectionDesignArtifactRepositoryLive),
   Layer.provideMerge(ProjectionStateRepositoryLive),
 );

@@ -15,6 +15,7 @@ import type {
   ProviderInstanceId,
   CheckpointRef,
   DesignBrief,
+  DesignArtifact,
   ProviderInteractionMode,
   RuntimeMode,
   ThreadWorkspaceKind,
@@ -108,6 +109,7 @@ export interface Thread {
   session: ThreadSession | null;
   messages: ChatMessage[];
   designBrief?: DesignBrief | null;
+  designArtifact?: DesignArtifact | null;
   proposedPlans: ProposedPlan[];
   error: string | null;
   createdAt: string;

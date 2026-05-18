@@ -66,6 +66,47 @@ Started: 2026-05-18
 
 ---
 
+## 2026-05-18 23:17 +03:00 - US-004
+
+- Added Design Artifact contracts (event, payload, command, thread field) plus a sandboxed Design Canvas.
+- Added orchestration decider + projector handling for `design.artifact-updated`.
+- Added a persisted `projection_design_artifacts` table, repository, layer, and pipeline projector, and wired the new rows through every projection snapshot/command/thread-detail loader.
+- Added a `DesignCanvas` web component that renders the current artifact through an `<iframe srcdoc sandbox="allow-scripts" referrerpolicy="no-referrer">` so generated HTML never touches the T3 Code DOM.
+- Files changed:
+  - `packages/contracts/src/orchestration.ts`
+  - `apps/server/src/orchestration/Schemas.ts`
+  - `apps/server/src/orchestration/decider.ts`
+  - `apps/server/src/orchestration/projector.ts`
+  - `apps/server/src/orchestration/projector.test.ts`
+  - `apps/server/src/orchestration/Layers/ProjectionPipeline.ts`
+  - `apps/server/src/orchestration/Layers/ProjectionSnapshotQuery.ts`
+  - `apps/server/src/persistence/Services/ProjectionDesignArtifacts.ts`
+  - `apps/server/src/persistence/Layers/ProjectionDesignArtifacts.ts`
+  - `apps/server/src/persistence/Migrations.ts`
+  - `apps/server/src/persistence/Migrations/033_ProjectionDesignArtifacts.ts`
+  - `apps/web/src/components/ChatView.tsx`
+  - `apps/web/src/components/ChatView.logic.ts`
+  - `apps/web/src/components/ChatView.logic.test.ts`
+  - `apps/web/src/store.ts`
+  - `apps/web/src/store.test.ts`
+  - `apps/web/src/threadDerivation.ts`
+  - `apps/web/src/types.ts`
+  - `apps/web/src/environmentGrouping.test.ts`
+  - `docs/design-workspace-issues/004-artifact-store-sandboxed-canvas.md`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- Checks run and result:
+  - `bun fmt`: passed
+  - `bun lint`: passed with pre-existing warnings only
+  - `bun typecheck`: passed
+  - `bun run --cwd apps/server test src/orchestration/projector.test.ts`: passed (13/13)
+  - `bun run --cwd apps/web test src/store.test.ts src/components/ChatView.logic.test.ts src/environmentGrouping.test.ts`: passed (67/67)
+- Learnings for future iterations:
+  - The web `iframe-missing-sandbox` oxlint rule only inspects literal JSX attributes; spread props won't satisfy it, so keep the sandbox attribute inline on the element.
+  - Adding a new projector requires four touch points: the pipeline (apply + registration + layer merge), the snapshot query (snapshot/command-read-model/thread-detail), `REQUIRED_SNAPSHOT_PROJECTORS`, and the migration list.
+
+---
+
 ## 2026-05-18 22:31 +03:00 - US-003
 
 - Added a versioned Design Brief command/event path through orchestration contracts, decider, projector, and projection snapshots.

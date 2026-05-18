@@ -160,6 +160,7 @@ import {
   collectUserMessageBlobPreviewUrls,
   createLocalDispatchSnapshot,
   deriveComposerSendState,
+  designCanvasIframeProps,
   hasServerAcknowledgedLocalDispatch,
   LAST_INVOKED_SCRIPT_BY_PROJECT_KEY,
   LastInvokedScriptByProjectSchema,
@@ -219,6 +220,45 @@ function appendDesignBriefToPrompt(prompt: string, designBriefMarkdown: string |
     "User Request:",
     prompt.trim().length > 0 ? prompt : IMAGE_ONLY_BOOTSTRAP_PROMPT,
   ].join("\n");
+}
+
+function DesignCanvas({ artifact }: { readonly artifact: Thread["designArtifact"] }) {
+  if (!artifact) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center bg-[linear-gradient(180deg,color-mix(in_srgb,var(--background)_96%,var(--muted))_0%,var(--background)_100%)] px-6 py-8">
+        <div className="flex min-h-[18rem] w-full max-w-4xl flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-card/20 px-6 text-center shadow-sm/5">
+          <div className="mb-4 flex h-10 w-16 items-center justify-center rounded-md border border-border/70 bg-background/80">
+            <span className="h-5 w-9 rounded-sm border border-muted-foreground/35 bg-muted/40" />
+          </div>
+          <h2 className="text-lg font-medium tracking-normal text-foreground">
+            Start a design artifact
+          </h2>
+          <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+            Describe the HTML design you want to create. The first artifact will appear on this
+            canvas once it is saved.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const iframeProps = designCanvasIframeProps(artifact);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col bg-[linear-gradient(180deg,color-mix(in_srgb,var(--background)_96%,var(--muted))_0%,var(--background)_100%)] px-4 py-3">
+      <div className="mb-2 flex shrink-0 items-center justify-between text-xs text-muted-foreground">
+        <span>Design Artifact</span>
+        <span>Version {artifact.version}</span>
+      </div>
+      <iframe
+        key={iframeProps.key}
+        title={iframeProps.title}
+        sandbox={iframeProps.sandbox}
+        referrerPolicy={iframeProps.referrerPolicy}
+        srcDoc={iframeProps.srcDoc}
+        className="min-h-0 flex-1 rounded-md border border-border bg-white shadow-sm"
+      />
+    </div>
+  );
 }
 
 function DesignBriefPanel({
@@ -3643,21 +3683,9 @@ export default function ChatView(props: ChatViewProps) {
           {/* Messages Wrapper */}
           <div className="relative flex min-h-0 flex-1 flex-col">
             {/* Messages — LegendList handles virtualization and scrolling internally */}
-            {workspaceSurface === "design" && !threadHasStarted(activeThread) ? (
-              <div className="flex min-h-0 flex-1 items-center justify-center bg-[linear-gradient(180deg,color-mix(in_srgb,var(--background)_96%,var(--muted))_0%,var(--background)_100%)] px-6 py-8">
-                <div className="flex min-h-[18rem] w-full max-w-4xl flex-col items-center justify-center rounded-lg border border-dashed border-border/70 bg-card/20 px-6 text-center shadow-sm/5">
-                  <div className="mb-4 flex h-10 w-16 items-center justify-center rounded-md border border-border/70 bg-background/80">
-                    <span className="h-5 w-9 rounded-sm border border-muted-foreground/35 bg-muted/40" />
-                  </div>
-                  <h2 className="text-lg font-medium tracking-normal text-foreground">
-                    Start a design artifact
-                  </h2>
-                  <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                    Describe the HTML design you want to create. The first artifact will appear on
-                    this canvas once it is saved.
-                  </p>
-                </div>
-              </div>
+            {workspaceSurface === "design" &&
+            (activeThread.designArtifact || !threadHasStarted(activeThread)) ? (
+              <DesignCanvas artifact={activeThread.designArtifact ?? null} />
             ) : (
               <MessagesTimeline
                 key={activeThread.id}

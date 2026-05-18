@@ -251,6 +251,13 @@ export const DesignBrief = Schema.Struct({
 });
 export type DesignBrief = typeof DesignBrief.Type;
 
+export const DesignArtifact = Schema.Struct({
+  html: Schema.String,
+  version: NonNegativeInt,
+  updatedAt: IsoDateTime,
+});
+export type DesignArtifact = typeof DesignArtifact.Type;
+
 const SourceProposedPlanReference = Schema.Struct({
   threadId: ThreadId,
   planId: OrchestrationProposedPlanId,
@@ -359,6 +366,7 @@ export const OrchestrationThread = Schema.Struct({
   deletedAt: Schema.NullOr(IsoDateTime),
   messages: Schema.Array(OrchestrationMessage),
   designBrief: Schema.optional(Schema.NullOr(DesignBrief)),
+  designArtifact: Schema.optional(Schema.NullOr(DesignArtifact)),
   proposedPlans: Schema.Array(OrchestrationProposedPlan).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
@@ -668,6 +676,14 @@ const DesignBriefUpdateCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
+const DesignArtifactUpdateCommand = Schema.Struct({
+  type: Schema.Literal("design.artifact.update"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  html: Schema.String,
+  createdAt: IsoDateTime,
+});
+
 const DispatchableClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ProjectMetaUpdateCommand,
@@ -686,6 +702,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadCheckpointRevertCommand,
   ThreadSessionStopCommand,
   DesignBriefUpdateCommand,
+  DesignArtifactUpdateCommand,
 ]);
 export type DispatchableClientOrchestrationCommand =
   typeof DispatchableClientOrchestrationCommand.Type;
@@ -708,6 +725,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadCheckpointRevertCommand,
   ThreadSessionStopCommand,
   DesignBriefUpdateCommand,
+  DesignArtifactUpdateCommand,
 ]);
 export type ClientOrchestrationCommand = typeof ClientOrchestrationCommand.Type;
 
@@ -817,6 +835,7 @@ export const OrchestrationEventType = Schema.Literals([
   "thread.turn-diff-completed",
   "thread.activity-appended",
   "design.brief-updated",
+  "design.artifact-updated",
 ]);
 export type OrchestrationEventType = typeof OrchestrationEventType.Type;
 
@@ -999,6 +1018,13 @@ export const DesignBriefUpdatedPayload = Schema.Struct({
   updatedAt: IsoDateTime,
 });
 
+export const DesignArtifactUpdatedPayload = Schema.Struct({
+  threadId: ThreadId,
+  html: Schema.String,
+  version: NonNegativeInt,
+  updatedAt: IsoDateTime,
+});
+
 export const OrchestrationEventMetadata = Schema.Struct({
   providerTurnId: Schema.optional(TrimmedNonEmptyString),
   providerItemId: Schema.optional(ProviderItemId),
@@ -1135,6 +1161,11 @@ export const OrchestrationEvent = Schema.Union([
     ...EventBaseFields,
     type: Schema.Literal("design.brief-updated"),
     payload: DesignBriefUpdatedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
+    type: Schema.Literal("design.artifact-updated"),
+    payload: DesignArtifactUpdatedPayload,
   }),
 ]);
 export type OrchestrationEvent = typeof OrchestrationEvent.Type;

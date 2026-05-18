@@ -176,6 +176,9 @@ function makeState(thread: Thread): AppState {
     designBriefByThreadId: {
       [thread.id]: thread.designBrief ?? null,
     },
+    designArtifactByThreadId: {
+      [thread.id]: thread.designArtifact ?? null,
+    },
     sidebarThreadSummaryById: {},
     bootstrapComplete: true,
   };
@@ -202,6 +205,7 @@ function makeEmptyState(overrides: Partial<AppState & EnvironmentState> = {}): A
     turnDiffIdsByThreadId: {},
     turnDiffSummaryByThreadId: {},
     designBriefByThreadId: {},
+    designArtifactByThreadId: {},
     sidebarThreadSummaryById: {},
     bootstrapComplete: true,
   };
@@ -489,6 +493,58 @@ describe("incremental orchestration updates", () => {
         updatedAt,
       },
       updatedAt,
+    });
+  });
+
+  it("applies design artifact updates to thread detail state without touching messages", () => {
+    const state = makeState(makeThread());
+    const firstUpdatedAt = "2026-02-27T00:00:01.000Z";
+    const secondUpdatedAt = "2026-02-27T00:00:05.000Z";
+
+    const afterFirst = applyOrchestrationEvent(
+      state,
+      makeEvent("design.artifact-updated", {
+        threadId: ThreadId.make("thread-1"),
+        html: "<!doctype html><html><body><h1>v1</h1></body></html>",
+        version: 1,
+        updatedAt: firstUpdatedAt,
+      }),
+      localEnvironmentId,
+    );
+
+    const afterFirstThread = selectThreadByRef(
+      afterFirst,
+      scopeThreadRef(localEnvironmentId, ThreadId.make("thread-1")),
+    );
+    expect(afterFirstThread).toMatchObject({
+      designArtifact: {
+        html: "<!doctype html><html><body><h1>v1</h1></body></html>",
+        version: 1,
+        updatedAt: firstUpdatedAt,
+      },
+      updatedAt: firstUpdatedAt,
+    });
+    expect(afterFirstThread?.messages).toEqual([]);
+
+    const afterSecond = applyOrchestrationEvent(
+      afterFirst,
+      makeEvent("design.artifact-updated", {
+        threadId: ThreadId.make("thread-1"),
+        html: "<!doctype html><html><body><h1>v2</h1></body></html>",
+        version: 2,
+        updatedAt: secondUpdatedAt,
+      }),
+      localEnvironmentId,
+    );
+
+    expect(
+      selectThreadByRef(afterSecond, scopeThreadRef(localEnvironmentId, ThreadId.make("thread-1"))),
+    ).toMatchObject({
+      designArtifact: {
+        html: "<!doctype html><html><body><h1>v2</h1></body></html>",
+        version: 2,
+        updatedAt: secondUpdatedAt,
+      },
     });
   });
 

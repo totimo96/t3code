@@ -16,6 +16,7 @@ import {
   buildExpiredTerminalContextToastCopy,
   createLocalDispatchSnapshot,
   deriveComposerSendState,
+  designCanvasIframeProps,
   hasServerAcknowledgedLocalDispatch,
   reconcileMountedTerminalThreadIds,
   resolveSendEnvMode,
@@ -87,6 +88,37 @@ describe("buildExpiredTerminalContextToastCopy", () => {
       title: "Expired terminal contexts omitted from message",
       description: "Re-add it if you want that terminal output included.",
     });
+  });
+});
+
+describe("designCanvasIframeProps", () => {
+  it("renders the artifact HTML through srcDoc inside a script-only sandbox", () => {
+    const props = designCanvasIframeProps({
+      html: "<!doctype html><html><body><h1>hi</h1></body></html>",
+      version: 3,
+      updatedAt: "2026-03-12T08:15:00.000Z",
+    });
+
+    expect(props.srcDoc).toBe("<!doctype html><html><body><h1>hi</h1></body></html>");
+    expect(props.sandbox).toBe("allow-scripts");
+    expect(props.sandbox.split(/\s+/)).not.toContain("allow-same-origin");
+    expect(props.referrerPolicy).toBe("no-referrer");
+    expect(props.title).toBe("Design Artifact");
+    expect(props.key).toBe("3-2026-03-12T08:15:00.000Z");
+  });
+
+  it("changes the key when the artifact version changes so React remounts the iframe", () => {
+    const first = designCanvasIframeProps({
+      html: "<p>v1</p>",
+      version: 1,
+      updatedAt: "2026-03-12T08:15:00.000Z",
+    });
+    const second = designCanvasIframeProps({
+      html: "<p>v2</p>",
+      version: 2,
+      updatedAt: "2026-03-12T08:16:00.000Z",
+    });
+    expect(first.key).not.toBe(second.key);
   });
 });
 
@@ -346,6 +378,9 @@ function setStoreThreads(threads: ReadonlyArray<ReturnType<typeof makeThread>>) 
     ),
     designBriefByThreadId: Object.fromEntries(
       threads.map((thread) => [thread.id, thread.designBrief ?? null]),
+    ),
+    designArtifactByThreadId: Object.fromEntries(
+      threads.map((thread) => [thread.id, thread.designArtifact ?? null]),
     ),
     sidebarThreadSummaryById: {},
     bootstrapComplete: true,

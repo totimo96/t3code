@@ -42,6 +42,7 @@ export function buildLocalDraftThread(
     session: null,
     messages: [],
     designBrief: null,
+    designArtifact: null,
     error,
     createdAt: draftThread.createdAt,
     archivedAt: null,
@@ -219,6 +220,26 @@ export function buildExpiredTerminalContextToastCopy(
   return {
     title: `${noun} omitted from message`,
     description: "Re-add it if you want that terminal output included.",
+  };
+}
+
+export interface DesignCanvasIframeProps {
+  readonly key: string;
+  readonly title: string;
+  readonly sandbox: string;
+  readonly referrerPolicy: "no-referrer";
+  readonly srcDoc: string;
+}
+
+export function designCanvasIframeProps(
+  artifact: NonNullable<Thread["designArtifact"]>,
+): DesignCanvasIframeProps {
+  return {
+    key: `${artifact.version}-${artifact.updatedAt}`,
+    title: "Design Artifact",
+    sandbox: "allow-scripts",
+    referrerPolicy: "no-referrer",
+    srcDoc: artifact.html,
   };
 }
 

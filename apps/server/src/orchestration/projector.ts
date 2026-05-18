@@ -18,6 +18,7 @@ import {
   ThreadArchivedPayload,
   ThreadCreatedPayload,
   DesignBriefUpdatedPayload,
+  DesignArtifactUpdatedPayload,
   ThreadDeletedPayload,
   ThreadInteractionModeSetPayload,
   ThreadMetaUpdatedPayload,
@@ -268,6 +269,7 @@ export function projectEvent(
             deletedAt: null,
             messages: [],
             designBrief: null,
+            designArtifact: null,
             activities: [],
             checkpoints: [],
             session: null,
@@ -340,6 +342,26 @@ export function projectEvent(
           threads: updateThread(nextBase.threads, payload.threadId, {
             designBrief: {
               markdown: payload.markdown,
+              version: payload.version,
+              updatedAt: payload.updatedAt,
+            },
+            updatedAt: payload.updatedAt,
+          }),
+        })),
+      );
+
+    case "design.artifact-updated":
+      return decodeForEvent(
+        DesignArtifactUpdatedPayload,
+        event.payload,
+        event.type,
+        "payload",
+      ).pipe(
+        Effect.map((payload) => ({
+          ...nextBase,
+          threads: updateThread(nextBase.threads, payload.threadId, {
+            designArtifact: {
+              html: payload.html,
               version: payload.version,
               updatedAt: payload.updatedAt,
             },
