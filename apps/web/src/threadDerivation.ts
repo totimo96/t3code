@@ -18,6 +18,7 @@ const EMPTY_MESSAGE_MAP: Record<MessageId, ChatMessage> = {};
 const EMPTY_ACTIVITY_MAP: Record<string, Thread["activities"][number]> = {};
 const EMPTY_PROPOSED_PLAN_MAP: Record<string, ProposedPlan> = {};
 const EMPTY_TURN_DIFF_MAP: Record<TurnId, TurnDiffSummary> = {};
+const EMPTY_DESIGN_ASSETS: NonNullable<Thread["designAssets"]> = [];
 
 const collectedByIdsCache = new WeakMap<readonly string[], WeakMap<object, readonly unknown[]>>();
 const threadCache = new WeakMap<
@@ -31,6 +32,7 @@ const threadCache = new WeakMap<
     turnDiffSummaries: Thread["turnDiffSummaries"];
     designBrief: Thread["designBrief"];
     designArtifact: Thread["designArtifact"];
+    designAssets: Thread["designAssets"];
     thread: Thread;
   }
 >();
@@ -117,6 +119,7 @@ export function getThreadFromEnvironmentState(
   const turnDiffSummaries = selectThreadTurnDiffSummaries(state, threadId);
   const designBrief = state.designBriefByThreadId[threadId] ?? null;
   const designArtifact = state.designArtifactByThreadId[threadId] ?? null;
+  const designAssets = state.designAssetsByThreadId[threadId] ?? EMPTY_DESIGN_ASSETS;
   const cached = threadCache.get(shell);
 
   if (
@@ -128,7 +131,8 @@ export function getThreadFromEnvironmentState(
     cached.proposedPlans === proposedPlans &&
     cached.turnDiffSummaries === turnDiffSummaries &&
     cached.designBrief === designBrief &&
-    cached.designArtifact === designArtifact
+    cached.designArtifact === designArtifact &&
+    cached.designAssets === designAssets
   ) {
     return cached.thread;
   }
@@ -141,6 +145,7 @@ export function getThreadFromEnvironmentState(
     messages,
     designBrief,
     designArtifact,
+    designAssets,
     activities,
     proposedPlans,
     turnDiffSummaries,
@@ -155,6 +160,7 @@ export function getThreadFromEnvironmentState(
     turnDiffSummaries,
     designBrief,
     designArtifact,
+    designAssets,
     thread,
   });
 

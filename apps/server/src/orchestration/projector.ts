@@ -19,6 +19,7 @@ import {
   ThreadCreatedPayload,
   DesignBriefUpdatedPayload,
   DesignArtifactUpdatedPayload,
+  DesignAssetCreatedPayload,
   ThreadDeletedPayload,
   ThreadInteractionModeSetPayload,
   ThreadMetaUpdatedPayload,
@@ -270,6 +271,7 @@ export function projectEvent(
             messages: [],
             designBrief: null,
             designArtifact: null,
+            designAssets: [],
             activities: [],
             checkpoints: [],
             session: null,
@@ -368,6 +370,36 @@ export function projectEvent(
             updatedAt: payload.updatedAt,
           }),
         })),
+      );
+
+    case "design.asset-created":
+      return decodeForEvent(DesignAssetCreatedPayload, event.payload, event.type, "payload").pipe(
+        Effect.map((payload) => {
+          const thread = nextBase.threads.find((entry) => entry.id === payload.threadId);
+          if (!thread) {
+            return nextBase;
+          }
+          if (thread.designAssets.some((asset) => asset.id === payload.id)) {
+            return nextBase;
+          }
+          return {
+            ...nextBase,
+            threads: updateThread(nextBase.threads, payload.threadId, {
+              designAssets: [
+                ...thread.designAssets,
+                {
+                  id: payload.id,
+                  threadId: payload.threadId,
+                  name: payload.name,
+                  mimeType: payload.mimeType,
+                  sizeBytes: payload.sizeBytes,
+                  createdAt: payload.createdAt,
+                },
+              ],
+              updatedAt: payload.createdAt,
+            }),
+          };
+        }),
       );
 
     case "thread.runtime-mode-set":

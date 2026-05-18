@@ -184,6 +184,7 @@ function createMinimalSnapshot(): OrchestrationReadModel {
         ],
         activities: [],
         proposedPlans: [],
+        designAssets: [],
         checkpoints: [],
         session: {
           threadId: THREAD_ID,

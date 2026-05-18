@@ -10,6 +10,7 @@ import {
   ApprovalRequestId,
   CheckpointRef,
   CommandId,
+  DesignAssetId,
   EventId,
   IsoDateTime,
   MessageId,
@@ -258,6 +259,16 @@ export const DesignArtifact = Schema.Struct({
 });
 export type DesignArtifact = typeof DesignArtifact.Type;
 
+export const DesignAsset = Schema.Struct({
+  id: DesignAssetId,
+  threadId: ThreadId,
+  name: Schema.String,
+  mimeType: TrimmedNonEmptyString,
+  sizeBytes: NonNegativeInt,
+  createdAt: IsoDateTime,
+});
+export type DesignAsset = typeof DesignAsset.Type;
+
 const SourceProposedPlanReference = Schema.Struct({
   threadId: ThreadId,
   planId: OrchestrationProposedPlanId,
@@ -367,6 +378,7 @@ export const OrchestrationThread = Schema.Struct({
   messages: Schema.Array(OrchestrationMessage),
   designBrief: Schema.optional(Schema.NullOr(DesignBrief)),
   designArtifact: Schema.optional(Schema.NullOr(DesignArtifact)),
+  designAssets: Schema.Array(DesignAsset).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
   proposedPlans: Schema.Array(OrchestrationProposedPlan).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
@@ -684,6 +696,17 @@ const DesignArtifactUpdateCommand = Schema.Struct({
   createdAt: IsoDateTime,
 });
 
+const DesignAssetCreateCommand = Schema.Struct({
+  type: Schema.Literal("design.asset.create"),
+  commandId: CommandId,
+  threadId: ThreadId,
+  assetId: DesignAssetId,
+  name: Schema.String,
+  mimeType: TrimmedNonEmptyString,
+  dataBase64: Schema.String,
+  createdAt: IsoDateTime,
+});
+
 const DispatchableClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ProjectMetaUpdateCommand,
@@ -703,6 +726,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ThreadSessionStopCommand,
   DesignBriefUpdateCommand,
   DesignArtifactUpdateCommand,
+  DesignAssetCreateCommand,
 ]);
 export type DispatchableClientOrchestrationCommand =
   typeof DispatchableClientOrchestrationCommand.Type;
@@ -726,6 +750,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ThreadSessionStopCommand,
   DesignBriefUpdateCommand,
   DesignArtifactUpdateCommand,
+  DesignAssetCreateCommand,
 ]);
 export type ClientOrchestrationCommand = typeof ClientOrchestrationCommand.Type;
 
@@ -836,6 +861,7 @@ export const OrchestrationEventType = Schema.Literals([
   "thread.activity-appended",
   "design.brief-updated",
   "design.artifact-updated",
+  "design.asset-created",
 ]);
 export type OrchestrationEventType = typeof OrchestrationEventType.Type;
 
@@ -1025,6 +1051,16 @@ export const DesignArtifactUpdatedPayload = Schema.Struct({
   updatedAt: IsoDateTime,
 });
 
+export const DesignAssetCreatedPayload = Schema.Struct({
+  id: DesignAssetId,
+  threadId: ThreadId,
+  name: Schema.String,
+  mimeType: TrimmedNonEmptyString,
+  sizeBytes: NonNegativeInt,
+  dataBase64: Schema.String,
+  createdAt: IsoDateTime,
+});
+
 export const OrchestrationEventMetadata = Schema.Struct({
   providerTurnId: Schema.optional(TrimmedNonEmptyString),
   providerItemId: Schema.optional(ProviderItemId),
@@ -1166,6 +1202,11 @@ export const OrchestrationEvent = Schema.Union([
     ...EventBaseFields,
     type: Schema.Literal("design.artifact-updated"),
     payload: DesignArtifactUpdatedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
+    type: Schema.Literal("design.asset-created"),
+    payload: DesignAssetCreatedPayload,
   }),
 ]);
 export type OrchestrationEvent = typeof OrchestrationEvent.Type;

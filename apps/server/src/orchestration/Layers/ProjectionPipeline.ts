@@ -17,6 +17,7 @@ import { OrchestrationEventStore } from "../../persistence/Services/Orchestratio
 import { ProjectionPendingApprovalRepository } from "../../persistence/Services/ProjectionPendingApprovals.ts";
 import { ProjectionDesignBriefRepository } from "../../persistence/Services/ProjectionDesignBriefs.ts";
 import { ProjectionDesignArtifactRepository } from "../../persistence/Services/ProjectionDesignArtifacts.ts";
+import { ProjectionDesignAssetRepository } from "../../persistence/Services/ProjectionDesignAssets.ts";
 import { ProjectionProjectRepository } from "../../persistence/Services/ProjectionProjects.ts";
 import { ProjectionStateRepository } from "../../persistence/Services/ProjectionState.ts";
 import { ProjectionThreadActivityRepository } from "../../persistence/Services/ProjectionThreadActivities.ts";
@@ -38,6 +39,8 @@ import { ProjectionThreadRepository } from "../../persistence/Services/Projectio
 import { ProjectionPendingApprovalRepositoryLive } from "../../persistence/Layers/ProjectionPendingApprovals.ts";
 import { ProjectionDesignBriefRepositoryLive } from "../../persistence/Layers/ProjectionDesignBriefs.ts";
 import { ProjectionDesignArtifactRepositoryLive } from "../../persistence/Layers/ProjectionDesignArtifacts.ts";
+import { ProjectionDesignAssetRepositoryLive } from "../../persistence/Layers/ProjectionDesignAssets.ts";
+import { designAssetRelativePath } from "../../designAssetStore.ts";
 import { ProjectionProjectRepositoryLive } from "../../persistence/Layers/ProjectionProjects.ts";
 import { ProjectionStateRepositoryLive } from "../../persistence/Layers/ProjectionState.ts";
 import { ProjectionThreadActivityRepositoryLive } from "../../persistence/Layers/ProjectionThreadActivities.ts";
@@ -70,6 +73,7 @@ export const ORCHESTRATION_PROJECTOR_NAMES = {
   pendingApprovals: "projection.pending-approvals",
   designBriefs: "projection.design-briefs",
   designArtifacts: "projection.design-artifacts",
+  designAssets: "projection.design-assets",
 } as const;
 
 type ProjectorName =
@@ -464,6 +468,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
     const projectionPendingApprovalRepository = yield* ProjectionPendingApprovalRepository;
     const projectionDesignBriefRepository = yield* ProjectionDesignBriefRepository;
     const projectionDesignArtifactRepository = yield* ProjectionDesignArtifactRepository;
+    const projectionDesignAssetRepository = yield* ProjectionDesignAssetRepository;
 
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -701,7 +706,8 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
         case "thread.approval-response-requested":
         case "thread.user-input-response-requested":
         case "design.brief-updated":
-        case "design.artifact-updated": {
+        case "design.artifact-updated":
+        case "design.asset-created": {
           const existingRow = yield* projectionThreadRepository.getById({
             threadId: event.payload.threadId,
           });
@@ -819,6 +825,38 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
         version: event.payload.version,
         updatedAt: event.payload.updatedAt,
       });
+    });
+
+    const applyDesignAssetsProjection: ProjectorDefinition["apply"] = Effect.fn(
+      "applyDesignAssetsProjection",
+    )(function* (event, _attachmentSideEffects) {
+      if (event.type !== "design.asset-created") {
+        return;
+      }
+
+      yield* projectionDesignAssetRepository.upsert({
+        assetId: event.payload.id,
+        threadId: event.payload.threadId,
+        name: event.payload.name,
+        mimeType: event.payload.mimeType,
+        sizeBytes: event.payload.sizeBytes,
+        createdAt: event.payload.createdAt,
+      });
+
+      yield* fileSystem
+        .makeDirectory(serverConfig.designAssetsDir, { recursive: true })
+        .pipe(Effect.catch(() => Effect.void));
+
+      const relativePath = designAssetRelativePath({
+        id: event.payload.id,
+        mimeType: event.payload.mimeType,
+        name: event.payload.name,
+      });
+      const filePath = path.join(serverConfig.designAssetsDir, relativePath);
+      const bytes = Uint8Array.from(Buffer.from(event.payload.dataBase64, "base64"));
+      yield* fileSystem
+        .writeFile(filePath, bytes)
+        .pipe(Effect.mapError(toPersistenceSqlError("ProjectionDesignAssetRepository.writeFile")));
     });
 
     const applyThreadMessagesProjection: ProjectorDefinition["apply"] = Effect.fn(
@@ -1445,6 +1483,10 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
         apply: applyDesignArtifactsProjection,
       },
       {
+        name: ORCHESTRATION_PROJECTOR_NAMES.designAssets,
+        apply: applyDesignAssetsProjection,
+      },
+      {
         name: ORCHESTRATION_PROJECTOR_NAMES.threads,
         apply: applyThreadsProjection,
       },
@@ -1552,5 +1594,6 @@ export const OrchestrationProjectionPipelineLive = Layer.effect(
   Layer.provideMerge(ProjectionPendingApprovalRepositoryLive),
   Layer.provideMerge(ProjectionDesignBriefRepositoryLive),
   Layer.provideMerge(ProjectionDesignArtifactRepositoryLive),
+  Layer.provideMerge(ProjectionDesignAssetRepositoryLive),
   Layer.provideMerge(ProjectionStateRepositoryLive),
 );

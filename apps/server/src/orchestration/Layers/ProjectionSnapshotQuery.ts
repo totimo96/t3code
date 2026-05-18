@@ -11,6 +11,7 @@ import {
   OrchestrationThread,
   type DesignBrief,
   type DesignArtifact,
+  type DesignAsset,
   ProjectScript,
   TurnId,
   type OrchestrationCheckpointSummary,
@@ -43,6 +44,7 @@ import {
 import { ProjectionCheckpoint } from "../../persistence/Services/ProjectionCheckpoints.ts";
 import { ProjectionDesignBrief } from "../../persistence/Services/ProjectionDesignBriefs.ts";
 import { ProjectionDesignArtifact } from "../../persistence/Services/ProjectionDesignArtifacts.ts";
+import { ProjectionDesignAsset } from "../../persistence/Services/ProjectionDesignAssets.ts";
 import { ProjectionProject } from "../../persistence/Services/ProjectionProjects.ts";
 import { ProjectionState } from "../../persistence/Services/ProjectionState.ts";
 import { ProjectionThreadActivity } from "../../persistence/Services/ProjectionThreadActivities.ts";
@@ -90,6 +92,7 @@ const ProjectionThreadActivityDbRowSchema = ProjectionThreadActivity.mapFields(
 const ProjectionThreadSessionDbRowSchema = ProjectionThreadSession;
 const ProjectionDesignBriefDbRowSchema = ProjectionDesignBrief;
 const ProjectionDesignArtifactDbRowSchema = ProjectionDesignArtifact;
+const ProjectionDesignAssetDbRowSchema = ProjectionDesignAsset;
 const ProjectionCheckpointDbRowSchema = ProjectionCheckpoint.mapFields(
   Struct.assign({
     files: Schema.fromJsonString(Schema.Array(OrchestrationCheckpointFile)),
@@ -152,6 +155,7 @@ const REQUIRED_SNAPSHOT_PROJECTORS = [
   ORCHESTRATION_PROJECTOR_NAMES.threadSessions,
   ORCHESTRATION_PROJECTOR_NAMES.designBriefs,
   ORCHESTRATION_PROJECTOR_NAMES.designArtifacts,
+  ORCHESTRATION_PROJECTOR_NAMES.designAssets,
   ORCHESTRATION_PROJECTOR_NAMES.checkpoints,
 ] as const;
 
@@ -555,6 +559,41 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         FROM projection_design_artifacts
         WHERE thread_id = ${threadId}
         LIMIT 1
+      `,
+  });
+
+  const listDesignAssetRows = SqlSchema.findAll({
+    Request: Schema.Void,
+    Result: ProjectionDesignAssetDbRowSchema,
+    execute: () =>
+      sql`
+        SELECT
+          asset_id AS "assetId",
+          thread_id AS "threadId",
+          name,
+          mime_type AS "mimeType",
+          size_bytes AS "sizeBytes",
+          created_at AS "createdAt"
+        FROM projection_design_assets
+        ORDER BY thread_id ASC, created_at ASC, asset_id ASC
+      `,
+  });
+
+  const listDesignAssetRowsByThread = SqlSchema.findAll({
+    Request: ThreadIdLookupInput,
+    Result: ProjectionDesignAssetDbRowSchema,
+    execute: ({ threadId }) =>
+      sql`
+        SELECT
+          asset_id AS "assetId",
+          thread_id AS "threadId",
+          name,
+          mime_type AS "mimeType",
+          size_bytes AS "sizeBytes",
+          created_at AS "createdAt"
+        FROM projection_design_assets
+        WHERE thread_id = ${threadId}
+        ORDER BY created_at ASC, asset_id ASC
       `,
   });
 
@@ -1070,6 +1109,14 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               ),
             ),
           ),
+          listDesignAssetRows(undefined).pipe(
+            Effect.mapError(
+              toPersistenceSqlOrDecodeError(
+                "ProjectionSnapshotQuery.getSnapshot:listDesignAssets:query",
+                "ProjectionSnapshotQuery.getSnapshot:listDesignAssets:decodeRows",
+              ),
+            ),
+          ),
           listCheckpointRows(undefined).pipe(
             Effect.mapError(
               toPersistenceSqlOrDecodeError(
@@ -1107,6 +1154,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             sessionRows,
             designBriefRows,
             designArtifactRows,
+            designAssetRows,
             checkpointRows,
             latestTurnRows,
             stateRows,
@@ -1120,6 +1168,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               const latestTurnByThread = new Map<string, OrchestrationLatestTurn>();
               const designBriefByThread = new Map<string, DesignBrief>();
               const designArtifactByThread = new Map<string, DesignArtifact>();
+              const designAssetsByThread = new Map<string, Array<DesignAsset>>();
 
               let updatedAt: string | null = null;
 
@@ -1265,6 +1314,20 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                 });
               }
 
+              for (const row of designAssetRows) {
+                updatedAt = maxIso(updatedAt, row.createdAt);
+                const threadAssets = designAssetsByThread.get(row.threadId) ?? [];
+                threadAssets.push({
+                  id: row.assetId,
+                  threadId: row.threadId,
+                  name: row.name,
+                  mimeType: row.mimeType,
+                  sizeBytes: row.sizeBytes,
+                  createdAt: row.createdAt,
+                });
+                designAssetsByThread.set(row.threadId, threadAssets);
+              }
+
               const repositoryIdentities = yield* resolveRepositoryIdentitiesForProjects(
                 projectRows,
                 { includeDeleted: true },
@@ -1300,6 +1363,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                 messages: messagesByThread.get(row.threadId) ?? [],
                 designBrief: designBriefByThread.get(row.threadId) ?? null,
                 designArtifact: designArtifactByThread.get(row.threadId) ?? null,
+                designAssets: designAssetsByThread.get(row.threadId) ?? [],
                 proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
                 activities: activitiesByThread.get(row.threadId) ?? [],
                 checkpoints: checkpointsByThread.get(row.threadId) ?? [],
@@ -1380,6 +1444,14 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               ),
             ),
           ),
+          listDesignAssetRows(undefined).pipe(
+            Effect.mapError(
+              toPersistenceSqlOrDecodeError(
+                "ProjectionSnapshotQuery.getCommandReadModel:listDesignAssets:query",
+                "ProjectionSnapshotQuery.getCommandReadModel:listDesignAssets:decodeRows",
+              ),
+            ),
+          ),
           listLatestTurnRows(undefined).pipe(
             Effect.mapError(
               toPersistenceSqlOrDecodeError(
@@ -1407,6 +1479,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             sessionRows,
             designBriefRows,
             designArtifactRows,
+            designAssetRows,
             latestTurnRows,
             stateRows,
           ]) =>
@@ -1486,6 +1559,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               const sessionByThread = new Map<string, OrchestrationSession>();
               const designBriefByThread = new Map<string, DesignBrief>();
               const designArtifactByThread = new Map<string, DesignArtifact>();
+              const designAssetsByThread = new Map<string, Array<DesignAsset>>();
 
               for (let index = 0; index < sessionRows.length; index += 1) {
                 const row = sessionRows[index];
@@ -1528,6 +1602,23 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   updatedAt: row.updatedAt,
                 });
               }
+              for (let index = 0; index < designAssetRows.length; index += 1) {
+                const row = designAssetRows[index];
+                if (!row) {
+                  continue;
+                }
+                updatedAt = maxIso(updatedAt, row.createdAt);
+                const threadAssets = designAssetsByThread.get(row.threadId) ?? [];
+                threadAssets.push({
+                  id: row.assetId,
+                  threadId: row.threadId,
+                  name: row.name,
+                  mimeType: row.mimeType,
+                  sizeBytes: row.sizeBytes,
+                  createdAt: row.createdAt,
+                });
+                designAssetsByThread.set(row.threadId, threadAssets);
+              }
 
               for (let index = 0; index < threadRows.length; index += 1) {
                 const row = threadRows[index];
@@ -1552,6 +1643,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   messages: [],
                   designBrief: designBriefByThread.get(row.threadId) ?? null,
                   designArtifact: designArtifactByThread.get(row.threadId) ?? null,
+                  designAssets: designAssetsByThread.get(row.threadId) ?? [],
                   proposedPlans: proposedPlansByThread.get(row.threadId) ?? [],
                   activities: [],
                   checkpoints: [],
@@ -2071,6 +2163,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         sessionRow,
         designBriefRow,
         designArtifactRow,
+        designAssetRows,
       ] = yield* Effect.all([
         getActiveThreadRowById({ threadId }).pipe(
           Effect.mapError(
@@ -2144,6 +2237,14 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             ),
           ),
         ),
+        listDesignAssetRowsByThread({ threadId }).pipe(
+          Effect.mapError(
+            toPersistenceSqlOrDecodeError(
+              "ProjectionSnapshotQuery.getThreadDetailById:listDesignAssets:query",
+              "ProjectionSnapshotQuery.getThreadDetailById:listDesignAssets:decodeRows",
+            ),
+          ),
+        ),
       ]);
 
       if (Option.isNone(threadRow)) {
@@ -2193,6 +2294,14 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               updatedAt: designArtifactRow.value.updatedAt,
             }
           : null,
+        designAssets: designAssetRows.map((row) => ({
+          id: row.assetId,
+          threadId: row.threadId,
+          name: row.name,
+          mimeType: row.mimeType,
+          sizeBytes: row.sizeBytes,
+          createdAt: row.createdAt,
+        })),
         proposedPlans: proposedPlanRows.map(mapProposedPlanRow),
         activities: activityRows.map((row) => {
           const activity = {

@@ -80,6 +80,10 @@ export interface EnvironmentState {
   turnDiffSummaryByThreadId: Record<ThreadId, Record<TurnId, TurnDiffSummary>>;
   designBriefByThreadId: Record<ThreadId, Thread["designBrief"]>;
   designArtifactByThreadId: Record<ThreadId, Thread["designArtifact"]>;
+  designAssetsByThreadId: Record<
+    ThreadId,
+    ReadonlyArray<NonNullable<Thread["designAssets"]>[number]>
+  >;
 
   // ---------------------------------------------------------------------------
   // Sidebar summary — written ONLY by the shell stream
@@ -116,6 +120,7 @@ const initialEnvironmentState: EnvironmentState = {
   turnDiffSummaryByThreadId: {},
   designBriefByThreadId: {},
   designArtifactByThreadId: {},
+  designAssetsByThreadId: {},
   sidebarThreadSummaryById: {},
   bootstrapComplete: false,
 };
@@ -250,6 +255,7 @@ function mapThread(thread: OrchestrationThread, environmentId: EnvironmentId): T
     messages: thread.messages.map((message) => mapMessage(environmentId, message)),
     designBrief: thread.designBrief ?? null,
     designArtifact: thread.designArtifact ?? null,
+    designAssets: thread.designAssets ?? [],
     proposedPlans: thread.proposedPlans.map(mapProposedPlan),
     error: sanitizeThreadErrorMessage(thread.session?.lastError),
     createdAt: thread.createdAt,
@@ -710,6 +716,16 @@ function writeThreadState(
     };
   }
 
+  if (previousThread?.designAssets !== nextThread.designAssets) {
+    nextState = {
+      ...nextState,
+      designAssetsByThreadId: {
+        ...nextState.designAssetsByThreadId,
+        [nextThread.id]: nextThread.designAssets ?? [],
+      },
+    };
+  }
+
   return nextState;
 }
 
@@ -841,6 +857,8 @@ function removeThreadState(state: EnvironmentState, threadId: ThreadId): Environ
   const { [threadId]: _removedDesignBrief, ...designBriefByThreadId } = state.designBriefByThreadId;
   const { [threadId]: _removedDesignArtifact, ...designArtifactByThreadId } =
     state.designArtifactByThreadId;
+  const { [threadId]: _removedDesignAssets, ...designAssetsByThreadId } =
+    state.designAssetsByThreadId;
   const { [threadId]: _removedSidebarSummary, ...sidebarThreadSummaryById } =
     state.sidebarThreadSummaryById;
 
@@ -861,6 +879,7 @@ function removeThreadState(state: EnvironmentState, threadId: ThreadId): Environ
     turnDiffSummaryByThreadId,
     designBriefByThreadId,
     designArtifactByThreadId,
+    designAssetsByThreadId,
     sidebarThreadSummaryById,
   };
 }
@@ -1148,6 +1167,7 @@ function syncEnvironmentShellSnapshot(
       state.designArtifactByThreadId,
       nextThreadIds,
     ),
+    designAssetsByThreadId: retainThreadScopedRecord(state.designAssetsByThreadId, nextThreadIds),
     bootstrapComplete: true,
   };
 
@@ -1311,6 +1331,7 @@ function applyEnvironmentOrchestrationEvent(
           messages: [],
           designBrief: null,
           designArtifact: null,
+          designAssets: [],
           proposedPlans: [],
           activities: [],
           checkpoints: [],
@@ -1387,6 +1408,29 @@ function applyEnvironmentOrchestrationEvent(
         },
         updatedAt: event.payload.updatedAt,
       }));
+
+    case "design.asset-created":
+      return updateThreadState(state, event.payload.threadId, (thread) => {
+        const existingAssets = thread.designAssets ?? [];
+        if (existingAssets.some((asset) => asset.id === event.payload.id)) {
+          return thread;
+        }
+        return {
+          ...thread,
+          designAssets: [
+            ...existingAssets,
+            {
+              id: event.payload.id,
+              threadId: event.payload.threadId,
+              name: event.payload.name,
+              mimeType: event.payload.mimeType,
+              sizeBytes: event.payload.sizeBytes,
+              createdAt: event.payload.createdAt,
+            },
+          ],
+          updatedAt: event.payload.createdAt,
+        };
+      });
 
     case "thread.turn-start-requested":
       return updateThreadState(state, event.payload.threadId, (thread) => ({

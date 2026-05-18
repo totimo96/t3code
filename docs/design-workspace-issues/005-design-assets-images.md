@@ -8,11 +8,11 @@ Add server-stored Design Assets so Design Artifacts can include images reproduci
 
 ## Acceptance criteria
 
-- [ ] Design Assets are persisted server-side and associated with a Design Thread or Design Artifact.
-- [ ] The UI supports adding an image asset through at least one explicit path.
-- [ ] Standalone Design Documents can reference stored Design Assets through controlled asset URLs.
-- [ ] Saved artifacts do not depend on arbitrary third-party image URLs.
-- [ ] Tests cover asset persistence, URL access control, and artifact rendering with images.
+- [x] Design Assets are persisted server-side and associated with a Design Thread or Design Artifact.
+- [x] The UI supports adding an image asset through at least one explicit path.
+- [x] Standalone Design Documents can reference stored Design Assets through controlled asset URLs.
+- [x] Saved artifacts do not depend on arbitrary third-party image URLs.
+- [x] Tests cover asset persistence, URL access control, and artifact rendering with images.
 
 ## Blocked by
 

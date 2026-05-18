@@ -43,6 +43,7 @@ export function buildLocalDraftThread(
     messages: [],
     designBrief: null,
     designArtifact: null,
+    designAssets: [],
     error,
     createdAt: draftThread.createdAt,
     archivedAt: null,

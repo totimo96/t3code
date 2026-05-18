@@ -22,6 +22,7 @@ import {
   resolveAttachmentRelativePath,
 } from "./attachmentPaths.ts";
 import { resolveAttachmentPathById } from "./attachmentStore.ts";
+import { DESIGN_ASSETS_ROUTE_PREFIX, resolveDesignAssetPathById } from "./designAssetStore.ts";
 import { resolveStaticDir, ServerConfig } from "./config.ts";
 import { BrowserTraceCollector } from "./observability/Services/BrowserTraceCollector.ts";
 import { ProjectFaviconResolver } from "./project/Services/ProjectFaviconResolver.ts";
@@ -168,6 +169,56 @@ export const attachmentsRouteLayer = HttpRouter.add(
       return HttpServerResponse.text(isIdLookup ? "Not Found" : "Invalid attachment path", {
         status: isIdLookup ? 404 : 400,
       });
+    }
+
+    const fileSystem = yield* FileSystem.FileSystem;
+    const fileInfo = yield* fileSystem
+      .stat(filePath)
+      .pipe(Effect.catch(() => Effect.succeed(null)));
+    if (!fileInfo || fileInfo.type !== "File") {
+      return HttpServerResponse.text("Not Found", { status: 404 });
+    }
+
+    return yield* HttpServerResponse.file(filePath, {
+      status: 200,
+      headers: {
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
+    }).pipe(
+      Effect.catch(() =>
+        Effect.succeed(HttpServerResponse.text("Internal Server Error", { status: 500 })),
+      ),
+    );
+  }).pipe(Effect.catchTag("AuthError", respondToAuthError)),
+);
+
+export const designAssetsRouteLayer = HttpRouter.add(
+  "GET",
+  `${DESIGN_ASSETS_ROUTE_PREFIX}/*`,
+  Effect.gen(function* () {
+    yield* requireAuthenticatedRequest;
+    const request = yield* HttpServerRequest.HttpServerRequest;
+    const url = HttpServerRequest.toURL(request);
+    if (Option.isNone(url)) {
+      return HttpServerResponse.text("Bad Request", { status: 400 });
+    }
+
+    const config = yield* ServerConfig;
+    const rawRelativePath = url.value.pathname.slice(DESIGN_ASSETS_ROUTE_PREFIX.length);
+    const normalizedRelativePath = normalizeAttachmentRelativePath(rawRelativePath);
+    if (!normalizedRelativePath) {
+      return HttpServerResponse.text("Invalid design asset path", { status: 400 });
+    }
+    if (normalizedRelativePath.includes("/") || normalizedRelativePath.includes(".")) {
+      return HttpServerResponse.text("Invalid design asset path", { status: 400 });
+    }
+
+    const filePath = resolveDesignAssetPathById({
+      designAssetsDir: config.designAssetsDir,
+      assetId: normalizedRelativePath,
+    });
+    if (!filePath) {
+      return HttpServerResponse.text("Not Found", { status: 404 });
     }
 
     const fileSystem = yield* FileSystem.FileSystem;

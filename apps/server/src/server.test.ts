@@ -57,6 +57,7 @@ import type { ServerConfigShape } from "./config.ts";
 import { deriveServerPaths, ServerConfig } from "./config.ts";
 import { makeRoutesLayer } from "./server.ts";
 import { resolveAttachmentRelativePath } from "./attachmentPaths.ts";
+import { designAssetRelativePath } from "./designAssetStore.ts";
 import {
   CheckpointDiffQuery,
   type CheckpointDiffQueryShape,
@@ -173,6 +174,7 @@ const makeDefaultOrchestrationReadModel = () => {
         session: null,
         activities: [],
         proposedPlans: [],
+        designAssets: [],
         checkpoints: [],
         deletedAt: null,
       },
@@ -2051,6 +2053,78 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
+  it.effect("serves design asset files from the design-assets dir", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const config = yield* buildAppUnderTest();
+      const assetId = "design-asset-11111111-1111-4111-8111-111111111111";
+      const assetPath = path.join(
+        config.designAssetsDir,
+        designAssetRelativePath({ id: assetId, mimeType: "image/png" }),
+      );
+
+      yield* fileSystem.makeDirectory(path.dirname(assetPath), { recursive: true });
+      yield* fileSystem.writeFileString(assetPath, "design-asset-bytes");
+
+      const response = yield* HttpClient.get(`/design-assets/${assetId}`, {
+        headers: {
+          cookie: yield* getAuthenticatedSessionCookieHeader(),
+        },
+      });
+      assert.equal(response.status, 200);
+      assert.equal(yield* response.text, "design-asset-bytes");
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
+  it.effect("requires authentication for design asset lookups", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const config = yield* buildAppUnderTest();
+      const assetId = "design-asset-22222222-2222-4222-8222-222222222222";
+      const assetPath = path.join(
+        config.designAssetsDir,
+        designAssetRelativePath({ id: assetId, mimeType: "image/png" }),
+      );
+
+      yield* fileSystem.makeDirectory(path.dirname(assetPath), { recursive: true });
+      yield* fileSystem.writeFileString(assetPath, "design-asset-bytes");
+
+      const response = yield* HttpClient.get(`/design-assets/${assetId}`);
+      assert.equal(response.status, 401);
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
+  it.effect("returns 404 for missing design asset ids", () =>
+    Effect.gen(function* () {
+      yield* buildAppUnderTest();
+
+      const response = yield* HttpClient.get(
+        "/design-assets/missing-design-asset-33333333-3333-4333-8333-333333333333",
+        {
+          headers: {
+            cookie: yield* getAuthenticatedSessionCookieHeader(),
+          },
+        },
+      );
+      assert.equal(response.status, 404);
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
+  it.effect("rejects design asset paths with traversal characters", () =>
+    Effect.gen(function* () {
+      yield* buildAppUnderTest();
+
+      const response = yield* HttpClient.get("/design-assets/nested/asset.png", {
+        headers: {
+          cookie: yield* getAuthenticatedSessionCookieHeader(),
+        },
+      });
+      assert.equal(response.status, 400);
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
   it.effect("routes websocket rpc server.upsertKeybinding", () =>
     Effect.gen(function* () {
       const rule: KeybindingRule = {
@@ -3236,6 +3310,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
             session: null,
             activities: [],
             proposedPlans: [],
+            designAssets: [],
             checkpoints: [],
             deletedAt: null,
           },

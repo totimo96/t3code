@@ -6,6 +6,11 @@ import type {
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 
+import {
+  DESIGN_ASSET_MAX_BYTES,
+  decodeBase64ByteLength,
+  isAllowedDesignAssetMimeType,
+} from "../designAssetStore.ts";
 import { OrchestrationCommandInvariantError } from "./Errors.ts";
 import {
   listThreadsByProjectId,
@@ -602,6 +607,65 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           html: command.html,
           version: (thread.designArtifact?.version ?? 0) + 1,
           updatedAt: occurredAt,
+        },
+      };
+    }
+
+    case "design.asset.create": {
+      const thread = yield* requireThread({
+        readModel,
+        command,
+        threadId: command.threadId,
+      });
+      if (thread.designAssets.some((asset) => asset.id === command.assetId)) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Design asset '${command.assetId}' already exists for thread '${command.threadId}'.`,
+        });
+      }
+      const mimeType = command.mimeType.toLowerCase();
+      if (!isAllowedDesignAssetMimeType(mimeType)) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Design asset mime type '${command.mimeType}' is not allowed.`,
+        });
+      }
+      const sizeBytes = decodeBase64ByteLength(command.dataBase64);
+      if (sizeBytes === null) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Design asset data must be valid base64.`,
+        });
+      }
+      if (sizeBytes === 0) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Design asset payload is empty.`,
+        });
+      }
+      if (sizeBytes > DESIGN_ASSET_MAX_BYTES) {
+        return yield* new OrchestrationCommandInvariantError({
+          commandType: command.type,
+          detail: `Design asset exceeds the ${DESIGN_ASSET_MAX_BYTES}-byte size limit.`,
+        });
+      }
+      const occurredAt = command.createdAt;
+      return {
+        ...withEventBase({
+          aggregateKind: "thread",
+          aggregateId: command.threadId,
+          occurredAt,
+          commandId: command.commandId,
+        }),
+        type: "design.asset-created",
+        payload: {
+          id: command.assetId,
+          threadId: command.threadId,
+          name: command.name,
+          mimeType,
+          sizeBytes,
+          dataBase64: command.dataBase64,
+          createdAt: occurredAt,
         },
       };
     }

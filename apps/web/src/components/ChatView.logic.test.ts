@@ -382,6 +382,9 @@ function setStoreThreads(threads: ReadonlyArray<ReturnType<typeof makeThread>>) 
     designArtifactByThreadId: Object.fromEntries(
       threads.map((thread) => [thread.id, thread.designArtifact ?? null]),
     ),
+    designAssetsByThreadId: Object.fromEntries(
+      threads.map((thread) => [thread.id, thread.designAssets ?? []]),
+    ),
     sidebarThreadSummaryById: {},
     bootstrapComplete: true,
   };

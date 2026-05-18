@@ -94,6 +94,7 @@ describe("orchestration projector", () => {
         messages: [],
         designBrief: null,
         designArtifact: null,
+        designAssets: [],
         proposedPlans: [],
         activities: [],
         checkpoints: [],
@@ -245,6 +246,130 @@ describe("orchestration projector", () => {
       version: 2,
       updatedAt: secondUpdate,
     });
+  });
+
+  it("applies design.asset-created events and dedupes identical asset ids", async () => {
+    const now = "2026-01-01T00:00:00.000Z";
+    const firstCreate = "2026-01-01T00:00:05.000Z";
+    const secondCreate = "2026-01-01T00:00:09.000Z";
+    const afterCreate = await Effect.runPromise(
+      projectEvent(
+        createEmptyReadModel(now),
+        makeEvent({
+          sequence: 1,
+          type: "thread.created",
+          aggregateKind: "thread",
+          aggregateId: "thread-1",
+          occurredAt: now,
+          commandId: "cmd-thread-create",
+          payload: {
+            threadId: "thread-1",
+            projectId: "project-1",
+            title: "demo",
+            modelSelection: {
+              provider: ProviderDriverKind.make("codex"),
+              model: "gpt-5-codex",
+            },
+            runtimeMode: "full-access",
+            branch: null,
+            worktreePath: null,
+            createdAt: now,
+            updatedAt: now,
+          },
+        }),
+      ),
+    );
+
+    const afterFirstAsset = await Effect.runPromise(
+      projectEvent(
+        afterCreate,
+        makeEvent({
+          sequence: 2,
+          type: "design.asset-created",
+          aggregateKind: "thread",
+          aggregateId: "thread-1",
+          occurredAt: firstCreate,
+          commandId: "cmd-asset-1",
+          payload: {
+            id: "asset-1",
+            threadId: "thread-1",
+            name: "hero.png",
+            mimeType: "image/png",
+            sizeBytes: 5,
+            dataBase64: "aGVsbG8=",
+            createdAt: firstCreate,
+          },
+        }),
+      ),
+    );
+
+    expect(afterFirstAsset.threads[0]?.designAssets).toEqual([
+      {
+        id: "asset-1",
+        threadId: "thread-1",
+        name: "hero.png",
+        mimeType: "image/png",
+        sizeBytes: 5,
+        createdAt: firstCreate,
+      },
+    ]);
+    expect(afterFirstAsset.threads[0]?.messages).toEqual([]);
+
+    const afterSecondAsset = await Effect.runPromise(
+      projectEvent(
+        afterFirstAsset,
+        makeEvent({
+          sequence: 3,
+          type: "design.asset-created",
+          aggregateKind: "thread",
+          aggregateId: "thread-1",
+          occurredAt: secondCreate,
+          commandId: "cmd-asset-2",
+          payload: {
+            id: "asset-2",
+            threadId: "thread-1",
+            name: "bg.jpg",
+            mimeType: "image/jpeg",
+            sizeBytes: 4,
+            dataBase64: "YWJjZA==",
+            createdAt: secondCreate,
+          },
+        }),
+      ),
+    );
+
+    expect(afterSecondAsset.threads[0]?.designAssets.map((asset) => asset.id)).toEqual([
+      "asset-1",
+      "asset-2",
+    ]);
+
+    const afterDuplicateAsset = await Effect.runPromise(
+      projectEvent(
+        afterSecondAsset,
+        makeEvent({
+          sequence: 4,
+          type: "design.asset-created",
+          aggregateKind: "thread",
+          aggregateId: "thread-1",
+          occurredAt: secondCreate,
+          commandId: "cmd-asset-1-dupe",
+          payload: {
+            id: "asset-1",
+            threadId: "thread-1",
+            name: "hero-replay.png",
+            mimeType: "image/png",
+            sizeBytes: 5,
+            dataBase64: "aGVsbG8=",
+            createdAt: secondCreate,
+          },
+        }),
+      ),
+    );
+
+    expect(afterDuplicateAsset.threads[0]?.designAssets.map((asset) => asset.id)).toEqual([
+      "asset-1",
+      "asset-2",
+    ]);
   });
 
   it("rejects design.artifact-updated payloads that fail runtime decoding", async () => {

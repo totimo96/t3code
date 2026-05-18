@@ -66,6 +66,64 @@ Started: 2026-05-18
 
 ---
 
+## 2026-05-19 00:38 +03:00 - US-005
+
+- Added Design Asset contracts (id brand, asset schema, command, event, payload, thread field).
+- Persisted assets server-side via `projection_design_assets` (migration 034) plus a projector that writes binary bytes from the base64-encoded event payload into the new `design-assets/` state dir.
+- Added a `/design-assets/<assetId>` HTTP route mounted alongside `/attachments`, authenticated and limited to single-segment ids — no traversal, no nested paths.
+- Threaded `designAssets` through the snapshot/command/thread-detail loaders, the web store slice, and the thread derivation cache.
+- Added a `DesignAssetsSection` (file picker + copy-URL list) to the existing Design Brief panel so users can upload images and copy the controlled URL that artifacts should reference.
+- Helpers `extractImageSourcesFromHtml` and `isControlledDesignAssetUrl` document the controlled-asset URL contract for future artifact generation/validation.
+- Files changed:
+  - `packages/contracts/src/baseSchemas.ts`
+  - `packages/contracts/src/orchestration.ts`
+  - `apps/server/src/config.ts`
+  - `apps/server/src/designAssetStore.ts` + `apps/server/src/designAssetStore.test.ts`
+  - `apps/server/src/http.ts`
+  - `apps/server/src/server.ts`
+  - `apps/server/src/server.test.ts`
+  - `apps/server/src/orchestration/Schemas.ts`
+  - `apps/server/src/orchestration/decider.ts`
+  - `apps/server/src/orchestration/projector.ts`
+  - `apps/server/src/orchestration/projector.test.ts`
+  - `apps/server/src/orchestration/commandInvariants.test.ts`
+  - `apps/server/src/orchestration/Layers/OrchestrationEngine.test.ts`
+  - `apps/server/src/orchestration/Layers/ProjectionPipeline.ts`
+  - `apps/server/src/orchestration/Layers/ProjectionSnapshotQuery.ts`
+  - `apps/server/src/orchestration/Layers/ProjectionSnapshotQuery.test.ts`
+  - `apps/server/src/persistence/Services/ProjectionDesignAssets.ts`
+  - `apps/server/src/persistence/Layers/ProjectionDesignAssets.ts`
+  - `apps/server/src/persistence/Migrations.ts`
+  - `apps/server/src/persistence/Migrations/034_ProjectionDesignAssets.ts`
+  - `apps/web/src/components/ChatView.tsx`
+  - `apps/web/src/components/ChatView.logic.ts`
+  - `apps/web/src/components/ChatView.logic.test.ts`
+  - `apps/web/src/components/ChatView.browser.tsx`
+  - `apps/web/src/components/KeybindingsToast.browser.tsx`
+  - `apps/web/src/lib/utils.ts`
+  - `apps/web/src/lib/designAssets.ts` + `apps/web/src/lib/designAssets.test.ts`
+  - `apps/web/src/store.ts`
+  - `apps/web/src/store.test.ts`
+  - `apps/web/src/threadDerivation.ts`
+  - `apps/web/src/types.ts`
+  - `apps/web/src/environmentGrouping.test.ts`
+  - `docs/design-workspace-issues/005-design-assets-images.md`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- Checks run and result:
+  - `bun fmt`: passed
+  - `bun lint`: passed (9 pre-existing warnings, no new ones)
+  - `bun typecheck`: passed
+  - `bun run --cwd apps/server test src/orchestration/projector.test.ts src/designAssetStore.test.ts`: 23/23 passed
+  - `bun run --cwd apps/server test src/server.test.ts -t "design asset"`: 4/4 passed
+  - `bun run --cwd apps/web test src/store.test.ts src/components/ChatView.logic.test.ts src/environmentGrouping.test.ts src/lib/designAssets.test.ts`: 71/71 passed
+- Learnings for future iterations:
+  - The web `iframe-missing-sandbox` lint pattern still applies — sandbox attributes must be literal JSX, even on assets-bearing iframes.
+  - When `OrchestrationThread` gains a non-optional projection field (`Schema.Array(...)` with a decoding default), every server-side fixture that builds a thread literal needs the new key — there's no quick way to default the property at the type level.
+  - Adding a new projection that writes to disk needs to map `PlatformError` to `ProjectionRepositoryError`; otherwise the projector signature widens and breaks the central `ProjectorDefinition.apply` constraint.
+
+---
+
 ## 2026-05-18 23:17 +03:00 - US-004
 
 - Added Design Artifact contracts (event, payload, command, thread field) plus a sandboxed Design Canvas.

@@ -179,6 +179,9 @@ function makeState(thread: Thread): AppState {
     designArtifactByThreadId: {
       [thread.id]: thread.designArtifact ?? null,
     },
+    designAssetsByThreadId: {
+      [thread.id]: thread.designAssets ?? [],
+    },
     sidebarThreadSummaryById: {},
     bootstrapComplete: true,
   };
@@ -206,6 +209,7 @@ function makeEmptyState(overrides: Partial<AppState & EnvironmentState> = {}): A
     turnDiffSummaryByThreadId: {},
     designBriefByThreadId: {},
     designArtifactByThreadId: {},
+    designAssetsByThreadId: {},
     sidebarThreadSummaryById: {},
     bootstrapComplete: true,
   };
@@ -494,6 +498,59 @@ describe("incremental orchestration updates", () => {
       },
       updatedAt,
     });
+  });
+
+  it("appends design assets created by design.asset-created events", () => {
+    const state = makeState(makeThread());
+    const createdAt = "2026-02-27T00:00:01.000Z";
+
+    const next = applyOrchestrationEvent(
+      state,
+      makeEvent("design.asset-created", {
+        id: "asset-1" as never,
+        threadId: ThreadId.make("thread-1"),
+        name: "hero.png",
+        mimeType: "image/png",
+        sizeBytes: 5,
+        dataBase64: "aGVsbG8=",
+        createdAt,
+      }),
+      localEnvironmentId,
+    );
+
+    const thread = selectThreadByRef(
+      next,
+      scopeThreadRef(localEnvironmentId, ThreadId.make("thread-1")),
+    );
+    expect(thread?.designAssets).toEqual([
+      {
+        id: "asset-1",
+        threadId: "thread-1",
+        name: "hero.png",
+        mimeType: "image/png",
+        sizeBytes: 5,
+        createdAt,
+      },
+    ]);
+    expect(thread?.messages).toEqual([]);
+
+    const replay = applyOrchestrationEvent(
+      next,
+      makeEvent("design.asset-created", {
+        id: "asset-1" as never,
+        threadId: ThreadId.make("thread-1"),
+        name: "hero-replay.png",
+        mimeType: "image/png",
+        sizeBytes: 5,
+        dataBase64: "aGVsbG8=",
+        createdAt: "2026-02-27T00:00:02.000Z",
+      }),
+      localEnvironmentId,
+    );
+    expect(
+      selectThreadByRef(replay, scopeThreadRef(localEnvironmentId, ThreadId.make("thread-1")))
+        ?.designAssets,
+    ).toHaveLength(1);
   });
 
   it("applies design artifact updates to thread detail state without touching messages", () => {

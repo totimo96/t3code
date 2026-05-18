@@ -35,7 +35,7 @@ import {
 import { projectScriptCwd, projectScriptRuntimeEnv } from "@t3tools/shared/projectScripts";
 import { truncate } from "@t3tools/shared/String";
 import { Debouncer } from "@tanstack/react-pacer";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import { useGitStatus } from "~/lib/gitStatusState";
@@ -114,7 +114,12 @@ import {
   nextProjectScriptId,
   projectScriptIdFromCommand,
 } from "~/projectScripts";
-import { newCommandId, newDraftId, newMessageId, newThreadId } from "~/lib/utils";
+import { newCommandId, newDesignAssetId, newDraftId, newMessageId, newThreadId } from "~/lib/utils";
+import {
+  designAssetUrlPath,
+  readFileAsBase64,
+  sortDesignAssetsByCreatedAt,
+} from "~/lib/designAssets";
 import { getProviderModelCapabilities, resolveSelectableProvider } from "../providerModels";
 import { useSettings } from "../hooks/useSettings";
 import { resolveAppModelSelectionForInstance } from "../modelSelection";
@@ -261,6 +266,141 @@ function DesignCanvas({ artifact }: { readonly artifact: Thread["designArtifact"
   );
 }
 
+const DESIGN_ASSET_MAX_BYTES = 5 * 1024 * 1024;
+
+function DesignAssetsSection({
+  environmentId,
+  thread,
+}: {
+  readonly environmentId: EnvironmentId;
+  readonly thread: Thread;
+}) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedAssetId, setCopiedAssetId] = useState<string | null>(null);
+
+  const assets = useMemo(
+    () => sortDesignAssetsByCreatedAt(thread.designAssets ?? []),
+    [thread.designAssets],
+  );
+
+  const handleSelectFile = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (event.target) {
+        event.target.value = "";
+      }
+      if (!file) {
+        return;
+      }
+      const api = readEnvironmentApi(environmentId);
+      if (!api) {
+        setError("This environment is not connected.");
+        return;
+      }
+      if (file.size > DESIGN_ASSET_MAX_BYTES) {
+        setError(`File is too large (max ${DESIGN_ASSET_MAX_BYTES} bytes).`);
+        return;
+      }
+      setError(null);
+      setIsUploading(true);
+      try {
+        const { mimeType, dataBase64 } = await readFileAsBase64(file);
+        await api.orchestration.dispatchCommand({
+          type: "design.asset.create",
+          commandId: newCommandId(),
+          threadId: thread.id,
+          assetId: newDesignAssetId(),
+          name: file.name,
+          mimeType,
+          dataBase64,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to upload design asset.");
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [environmentId, thread.id],
+  );
+
+  const handleCopyUrl = useCallback(async (asset: NonNullable<Thread["designAssets"]>[number]) => {
+    const url = designAssetUrlPath(asset.id);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedAssetId(asset.id);
+      globalThis.setTimeout(
+        () => setCopiedAssetId((current) => (current === asset.id ? null : current)),
+        1500,
+      );
+    } catch {
+      setCopiedAssetId(null);
+    }
+  }, []);
+
+  return (
+    <div className="mt-4 flex flex-col">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium text-foreground">Design Assets</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Upload images and reference them with the controlled URL inside the design HTML.
+          </p>
+        </div>
+        <Button size="xs" disabled={isUploading} onClick={handleSelectFile}>
+          {isUploading ? "Uploading" : "Add image"}
+        </Button>
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,image/avif"
+        className="hidden"
+        onChange={(event) => void handleFileChange(event)}
+      />
+      {error ? <p className="mt-2 text-xs leading-5 text-destructive">{error}</p> : null}
+      {assets.length === 0 ? (
+        <p className="mt-3 text-xs text-muted-foreground">No design assets yet.</p>
+      ) : (
+        <ul className="mt-3 flex flex-col gap-2">
+          {assets.map((asset) => {
+            const assetUrl = designAssetUrlPath(asset.id);
+            return (
+              <li
+                key={asset.id}
+                className="flex flex-col gap-1 rounded-md border border-border bg-card/40 p-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-foreground" title={asset.name}>
+                      {asset.name}
+                    </p>
+                    <p className="text-[0.6875rem] text-muted-foreground">
+                      {asset.mimeType} · {asset.sizeBytes} bytes
+                    </p>
+                  </div>
+                  <Button size="xs" variant="outline" onClick={() => void handleCopyUrl(asset)}>
+                    {copiedAssetId === asset.id ? "Copied" : "Copy URL"}
+                  </Button>
+                </div>
+                <code className="truncate text-[0.6875rem] text-muted-foreground" title={assetUrl}>
+                  {assetUrl}
+                </code>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function DesignBriefPanel({
   environmentId,
   thread,
@@ -303,7 +443,7 @@ function DesignBriefPanel({
   }, [draftMarkdown, environmentId, hasChanges, isSaving, thread.id]);
 
   return (
-    <aside className="hidden w-80 shrink-0 border-l border-border bg-background/95 p-4 lg:flex lg:flex-col">
+    <aside className="hidden w-80 shrink-0 flex-col overflow-y-auto border-l border-border bg-background/95 p-4 lg:flex">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-medium text-foreground">Design Brief</h2>
@@ -316,12 +456,13 @@ function DesignBriefPanel({
         </Button>
       </div>
       <textarea
-        className="mt-4 min-h-0 flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm leading-6 text-foreground outline-none ring-ring/24 placeholder:text-muted-foreground focus:border-ring focus:ring-[3px]"
+        className="mt-4 min-h-40 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm leading-6 text-foreground outline-none ring-ring/24 placeholder:text-muted-foreground focus:border-ring focus:ring-[3px]"
         value={draftMarkdown}
         onChange={(event) => setDraftMarkdown(event.target.value)}
         placeholder="Goals, constraints, tone, layout notes..."
       />
       {error ? <p className="mt-3 text-xs leading-5 text-destructive">{error}</p> : null}
+      <DesignAssetsSection environmentId={environmentId} thread={thread} />
     </aside>
   );
 }
