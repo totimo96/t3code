@@ -70,8 +70,7 @@ for i in $(seq 1 "$MAX_ITERATIONS"); do
       --cd "$REPO_DIR" \
       --model gpt-5.5 \
       --config 'model_reasoning_effort="low"' \
-      --sandbox danger-full-access \
-      --ask-for-approval never \
+      --dangerously-bypass-approvals-and-sandbox \
       < "$SCRIPT_DIR/prompt.md" 2>&1 | tee /dev/stderr
   ) || true
 
