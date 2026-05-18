@@ -16,7 +16,7 @@
         "bun fmt, bun lint, and bun typecheck pass."
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Source issue: docs/design-workspace-issues/001-thread-workspace-kind-and-switch.md"
     },
     {

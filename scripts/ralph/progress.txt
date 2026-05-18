@@ -8,3 +8,31 @@ Started: 2026-05-18
 - Do not run `bun test`; use `bun run test` when tests are needed.
 
 ---
+
+## 2026-05-18 17:22 +03:00 - US-001
+
+- Implemented Thread Workspace Kind across contracts, server projections, persistence, and the web sidebar.
+- Added a persisted `workspace_kind` projection column with legacy fallback to Coding Workspace.
+- Added a Code/Design Workspace Switch in the sidebar and workspace-filtered sidebar selectors.
+- Files changed:
+  - `.gitignore`
+  - `packages/contracts/src/orchestration.ts`
+  - `apps/server/src/orchestration/*`
+  - `apps/server/src/persistence/*`
+  - `apps/web/src/components/Sidebar.tsx`
+  - `apps/web/src/store.ts`
+  - `apps/web/src/types.ts`
+  - `apps/web/src/environmentGrouping.test.ts`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- Checks run and result:
+  - `bun fmt`: passed
+  - `bun lint`: passed with existing warnings
+  - `bun typecheck`: passed
+  - `bun run --cwd apps/web test src/environmentGrouping.test.ts`: passed
+  - `bun run --cwd apps/server test src/persistence/Layers/ProjectionRepositories.test.ts`: passed
+- Learnings for future iterations:
+  - Projection migrations must be statically imported and registered in `apps/server/src/persistence/Migrations.ts`.
+  - Root `bun run test <file>` is not a valid targeted test entrypoint because the root script delegates to Turbo; run package-local test scripts with `bun run --cwd <package> test <file>`.
+
+---

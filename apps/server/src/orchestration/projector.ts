@@ -257,6 +257,7 @@ export function projectEvent(
             modelSelection: payload.modelSelection,
             runtimeMode: payload.runtimeMode,
             interactionMode: payload.interactionMode,
+            workspaceKind: payload.workspaceKind ?? "coding",
             branch: payload.branch,
             worktreePath: payload.worktreePath,
             latestTurn: null,

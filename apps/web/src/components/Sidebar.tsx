@@ -44,6 +44,7 @@ import {
   type SidebarProjectGroupingMode,
   type ThreadEnvMode,
   ThreadId,
+  type ThreadWorkspaceKind,
 } from "@t3tools/contracts";
 import {
   parseScopedThreadKey,
@@ -68,8 +69,9 @@ import { isMacPlatform, newCommandId } from "../lib/utils";
 import {
   selectProjectByRef,
   selectProjectsAcrossEnvironments,
+  selectSidebarThreadsAcrossEnvironmentsByWorkspaceKind,
   selectSidebarThreadsForProjectRefs,
-  selectSidebarThreadsAcrossEnvironments,
+  selectSidebarThreadsForProjectRefsByWorkspaceKind,
   selectThreadByRef,
   useStore,
 } from "../store";
@@ -140,6 +142,7 @@ import {
 } from "./ui/number-field";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { Toggle, ToggleGroup } from "./ui/toggle-group";
 import {
   SidebarContent,
   SidebarFooter,
@@ -893,6 +896,7 @@ const SidebarProjectThreadList = memo(function SidebarProjectThreadList(
 
 interface SidebarProjectItemProps {
   project: SidebarProjectSnapshot;
+  activeWorkspaceKind: ThreadWorkspaceKind;
   isThreadListExpanded: boolean;
   activeRouteThreadKey: string | null;
   newThreadShortcutLabel: string | null;
@@ -913,6 +917,7 @@ interface SidebarProjectItemProps {
 const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjectItemProps) {
   const {
     project,
+    activeWorkspaceKind,
     isThreadListExpanded,
     activeRouteThreadKey,
     newThreadShortcutLabel,
@@ -1022,8 +1027,12 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
     useShallow(
       useMemo(
         () => (state: import("../store").AppState) =>
-          selectSidebarThreadsForProjectRefs(state, project.memberProjectRefs),
-        [project.memberProjectRefs],
+          selectSidebarThreadsForProjectRefsByWorkspaceKind(
+            state,
+            project.memberProjectRefs,
+            activeWorkspaceKind,
+          ),
+        [project.memberProjectRefs, activeWorkspaceKind],
       ),
     ),
   );
@@ -2446,39 +2455,65 @@ function SortableProjectItem({
 
 const SidebarChromeHeader = memo(function SidebarChromeHeader({
   isElectron,
+  activeWorkspaceKind,
+  onWorkspaceKindChange,
 }: {
   isElectron: boolean;
+  activeWorkspaceKind: ThreadWorkspaceKind;
+  onWorkspaceKindChange: (workspaceKind: ThreadWorkspaceKind) => void;
 }) {
   const wordmark = (
-    <div className="flex items-center gap-2">
-      <SidebarTrigger className="shrink-0 md:hidden" />
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Link
-              aria-label="Go to threads"
-              className="ml-1 flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md outline-hidden ring-ring transition-colors hover:text-foreground focus-visible:ring-2"
-              to="/"
-            >
-              <T3Wordmark />
-              <span className="truncate text-sm font-medium tracking-tight text-muted-foreground">
-                Code
-              </span>
-              <span className="rounded-full bg-muted/50 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.18em] text-muted-foreground/60">
-                {APP_STAGE_LABEL}
-              </span>
-            </Link>
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <SidebarTrigger className="shrink-0 md:hidden" />
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Link
+                aria-label="Go to threads"
+                className="ml-1 flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md outline-hidden ring-ring transition-colors hover:text-foreground focus-visible:ring-2"
+                to="/"
+              >
+                <T3Wordmark />
+                <span className="truncate text-sm font-medium tracking-tight text-muted-foreground">
+                  Code
+                </span>
+                <span className="rounded-full bg-muted/50 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.18em] text-muted-foreground/60">
+                  {APP_STAGE_LABEL}
+                </span>
+              </Link>
+            }
+          />
+          <TooltipPopup side="bottom" sideOffset={2}>
+            Version {APP_VERSION}
+          </TooltipPopup>
+        </Tooltip>
+      </div>
+      <ToggleGroup
+        aria-label="Workspace Switch"
+        className="w-full"
+        variant="outline"
+        size="sm"
+        value={[activeWorkspaceKind]}
+        onValueChange={(value) => {
+          const next = value[0];
+          if (next === "coding" || next === "design") {
+            onWorkspaceKindChange(next);
           }
-        />
-        <TooltipPopup side="bottom" sideOffset={2}>
-          Version {APP_VERSION}
-        </TooltipPopup>
-      </Tooltip>
+        }}
+      >
+        <Toggle className="flex-1 text-xs" value="coding">
+          Code
+        </Toggle>
+        <Toggle className="flex-1 text-xs" value="design">
+          Design
+        </Toggle>
+      </ToggleGroup>
     </div>
   );
 
   return isElectron ? (
-    <SidebarHeader className="drag-region h-[52px] flex-row items-center gap-2 px-4 py-0 pl-[90px] wco:h-[env(titlebar-area-height)] wco:pl-[calc(env(titlebar-area-x)+1em)]">
+    <SidebarHeader className="drag-region flex-row items-center gap-2 px-4 py-2 pl-[90px] wco:min-h-[env(titlebar-area-height)] wco:pl-[calc(env(titlebar-area-x)+1em)]">
       {wordmark}
     </SidebarHeader>
   ) : (
@@ -2526,6 +2561,7 @@ interface SidebarProjectsContentProps {
   threadSortOrder: SidebarThreadSortOrder;
   projectGroupingMode: SidebarProjectGroupingMode;
   threadPreviewCount: SidebarThreadPreviewCount;
+  activeWorkspaceKind: ThreadWorkspaceKind;
   updateSettings: ReturnType<typeof useUpdateSettings>["updateSettings"];
   openAddProject: () => void;
   isManualProjectSorting: boolean;
@@ -2567,6 +2603,7 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
     threadSortOrder,
     projectGroupingMode,
     threadPreviewCount,
+    activeWorkspaceKind,
     updateSettings,
     openAddProject,
     isManualProjectSorting,
@@ -2722,6 +2759,7 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
                     {(dragHandleProps) => (
                       <SidebarProjectItem
                         project={project}
+                        activeWorkspaceKind={activeWorkspaceKind}
                         isThreadListExpanded={expandedThreadListsByProject.has(project.projectKey)}
                         activeRouteThreadKey={
                           activeRouteProjectKey === project.projectKey ? routeThreadKey : null
@@ -2754,6 +2792,7 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
               <SidebarProjectListRow
                 key={project.projectKey}
                 project={project}
+                activeWorkspaceKind={activeWorkspaceKind}
                 isThreadListExpanded={expandedThreadListsByProject.has(project.projectKey)}
                 activeRouteThreadKey={
                   activeRouteProjectKey === project.projectKey ? routeThreadKey : null
@@ -2788,7 +2827,16 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
 
 export default function Sidebar() {
   const projects = useStore(useShallow(selectProjectsAcrossEnvironments));
-  const sidebarThreads = useStore(useShallow(selectSidebarThreadsAcrossEnvironments));
+  const [activeWorkspaceKind, setActiveWorkspaceKind] = useState<ThreadWorkspaceKind>("coding");
+  const sidebarThreads = useStore(
+    useShallow(
+      useMemo(
+        () => (state: import("../store").AppState) =>
+          selectSidebarThreadsAcrossEnvironmentsByWorkspaceKind(state, activeWorkspaceKind),
+        [activeWorkspaceKind],
+      ),
+    ),
+  );
   const projectExpandedById = useUiStateStore((store) => store.projectExpandedById);
   const projectOrder = useUiStateStore((store) => store.projectOrder);
   const reorderProjects = useUiStateStore((store) => store.reorderProjects);
@@ -3414,7 +3462,11 @@ export default function Sidebar() {
 
   return (
     <>
-      <SidebarChromeHeader isElectron={isElectron} />
+      <SidebarChromeHeader
+        isElectron={isElectron}
+        activeWorkspaceKind={activeWorkspaceKind}
+        onWorkspaceKindChange={setActiveWorkspaceKind}
+      />
 
       {isOnSettings ? (
         <SettingsSidebarNav pathname={pathname} />
@@ -3430,6 +3482,7 @@ export default function Sidebar() {
             threadSortOrder={sidebarThreadSortOrder}
             projectGroupingMode={sidebarProjectGroupingMode}
             threadPreviewCount={sidebarThreadPreviewCount}
+            activeWorkspaceKind={activeWorkspaceKind}
             updateSettings={updateSettings}
             openAddProject={openAddProjectCommandPalette}
             isManualProjectSorting={isManualProjectSorting}

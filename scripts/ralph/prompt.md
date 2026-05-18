@@ -32,12 +32,14 @@ Append to `scripts/ralph/progress.txt`:
 
 ```md
 ## [Date/Time] - [Story ID]
+
 - What was implemented
 - Files changed
 - Checks run and result
 - Learnings for future iterations:
   - Reusable patterns discovered
   - Gotchas encountered
+
 ---
 ```
 

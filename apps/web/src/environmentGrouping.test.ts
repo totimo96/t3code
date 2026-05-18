@@ -5,8 +5,10 @@ import { describe, expect, it } from "vitest";
 import {
   selectProjectsAcrossEnvironments,
   selectSidebarThreadsAcrossEnvironments,
+  selectSidebarThreadsAcrossEnvironmentsByWorkspaceKind,
   selectSidebarThreadsForProjectRef,
   selectSidebarThreadsForProjectRefs,
+  selectSidebarThreadsForProjectRefsByWorkspaceKind,
   type AppState,
   type EnvironmentState,
 } from "./store";
@@ -73,6 +75,7 @@ function makeSidebarThreadSummary(
     hasPendingApprovals: false,
     hasPendingUserInput: false,
     hasActionableProposedPlan: false,
+    workspaceKind: "coding",
     ...overrides,
   };
 }
@@ -471,6 +474,25 @@ describe("environment grouping", () => {
       expect(ids).toContain(threadL1);
       expect(ids).toContain(threadRO1);
     });
+
+    it("filters threads by workspace kind and treats missing kind as coding", () => {
+      const state = makeFixtureState();
+      state.environmentStateById[primaryEnvId]!.sidebarThreadSummaryById[threadP2] = {
+        ...state.environmentStateById[primaryEnvId]!.sidebarThreadSummaryById[threadP2]!,
+        workspaceKind: "design",
+      };
+      delete state.environmentStateById[remoteEnvId]!.sidebarThreadSummaryById[threadR1]!
+        .workspaceKind;
+
+      expect(selectSidebarThreadsAcrossEnvironmentsByWorkspaceKind(state, "design")).toHaveLength(
+        1,
+      );
+      const codingIds = selectSidebarThreadsAcrossEnvironmentsByWorkspaceKind(state, "coding").map(
+        (thread) => thread.id,
+      );
+      expect(codingIds).toContain(threadR1);
+      expect(codingIds).not.toContain(threadP2);
+    });
   });
 
   describe("selectSidebarThreadsForProjectRef", () => {
@@ -536,6 +558,22 @@ describe("environment grouping", () => {
       const threads = selectSidebarThreadsForProjectRefs(state, refs);
       expect(threads).toHaveLength(1);
       expect(threads[0]?.id).toBe(threadL1);
+    });
+
+    it("filters project refs by workspace kind", () => {
+      const state = makeFixtureState();
+      state.environmentStateById[primaryEnvId]!.sidebarThreadSummaryById[threadP2] = {
+        ...state.environmentStateById[primaryEnvId]!.sidebarThreadSummaryById[threadP2]!,
+        workspaceKind: "design",
+      };
+      const refs = [scopeProjectRef(primaryEnvId, sharedProjectPrimaryId)];
+
+      expect(
+        selectSidebarThreadsForProjectRefsByWorkspaceKind(state, refs, "coding").map((t) => t.id),
+      ).toEqual([threadP1]);
+      expect(
+        selectSidebarThreadsForProjectRefsByWorkspaceKind(state, refs, "design").map((t) => t.id),
+      ).toEqual([threadP2]);
     });
 
     it("handles refs with nonexistent environment gracefully", () => {

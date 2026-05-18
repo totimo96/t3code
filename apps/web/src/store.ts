@@ -17,6 +17,7 @@ import type {
   ProjectId,
   ScopedProjectRef,
   ScopedThreadRef,
+  ThreadWorkspaceKind,
 } from "@t3tools/contracts";
 import { isProviderDriverKind, ProviderDriverKind } from "@t3tools/contracts";
 import type { ThreadId, TurnId } from "@t3tools/contracts";
@@ -240,6 +241,7 @@ function mapThread(thread: OrchestrationThread, environmentId: EnvironmentId): T
     modelSelection: normalizeModelSelection(thread.modelSelection),
     runtimeMode: thread.runtimeMode,
     interactionMode: thread.interactionMode,
+    workspaceKind: thread.workspaceKind,
     session: thread.session ? mapSession(thread.session) : null,
     messages: thread.messages.map((message) => mapMessage(environmentId, message)),
     proposedPlans: thread.proposedPlans.map(mapProposedPlan),
@@ -274,6 +276,7 @@ function mapThreadShell(
     modelSelection: normalizeModelSelection(thread.modelSelection),
     runtimeMode: thread.runtimeMode,
     interactionMode: thread.interactionMode,
+    workspaceKind: thread.workspaceKind,
     error: sanitizeThreadErrorMessage(thread.session?.lastError),
     createdAt: thread.createdAt,
     archivedAt: thread.archivedAt,
@@ -292,6 +295,7 @@ function mapThreadShell(
     projectId: thread.projectId,
     title: thread.title,
     interactionMode: thread.interactionMode,
+    workspaceKind: thread.workspaceKind,
     session,
     createdAt: thread.createdAt,
     archivedAt: thread.archivedAt,
@@ -322,6 +326,7 @@ function toThreadShell(thread: Thread): ThreadShell {
     modelSelection: thread.modelSelection,
     runtimeMode: thread.runtimeMode,
     interactionMode: thread.interactionMode,
+    workspaceKind: thread.workspaceKind,
     error: thread.error,
     createdAt: thread.createdAt,
     archivedAt: thread.archivedAt,
@@ -393,6 +398,7 @@ function sidebarThreadSummariesEqual(
     left.projectId === right.projectId &&
     left.title === right.title &&
     left.interactionMode === right.interactionMode &&
+    (left.workspaceKind ?? "coding") === (right.workspaceKind ?? "coding") &&
     threadSessionsEqual(left.session, right.session) &&
     left.createdAt === right.createdAt &&
     left.archivedAt === right.archivedAt &&
@@ -418,6 +424,7 @@ function threadShellsEqual(left: ThreadShell | undefined, right: ThreadShell): b
     left.modelSelection === right.modelSelection &&
     left.runtimeMode === right.runtimeMode &&
     left.interactionMode === right.interactionMode &&
+    (left.workspaceKind ?? "coding") === (right.workspaceKind ?? "coding") &&
     left.error === right.error &&
     left.createdAt === right.createdAt &&
     left.archivedAt === right.archivedAt &&
@@ -1257,6 +1264,7 @@ function applyEnvironmentOrchestrationEvent(
           modelSelection: event.payload.modelSelection,
           runtimeMode: event.payload.runtimeMode,
           interactionMode: event.payload.interactionMode,
+          workspaceKind: event.payload.workspaceKind,
           branch: event.payload.branch,
           worktreePath: event.payload.worktreePath,
           latestTurn: null,
@@ -1772,6 +1780,15 @@ export function selectSidebarThreadsAcrossEnvironments(state: AppState): Sidebar
   );
 }
 
+export function selectSidebarThreadsAcrossEnvironmentsByWorkspaceKind(
+  state: AppState,
+  workspaceKind: ThreadWorkspaceKind,
+): SidebarThreadSummary[] {
+  return selectSidebarThreadsAcrossEnvironments(state).filter(
+    (thread) => (thread.workspaceKind ?? "coding") === workspaceKind,
+  );
+}
+
 export function selectSidebarThreadsForProjectRef(
   state: AppState,
   ref: ScopedProjectRef | null | undefined,
@@ -1795,6 +1812,16 @@ export function selectSidebarThreadsForProjectRefs(
   if (refs.length === 0) return [];
   if (refs.length === 1) return selectSidebarThreadsForProjectRef(state, refs[0]);
   return refs.flatMap((ref) => selectSidebarThreadsForProjectRef(state, ref));
+}
+
+export function selectSidebarThreadsForProjectRefsByWorkspaceKind(
+  state: AppState,
+  refs: readonly ScopedProjectRef[],
+  workspaceKind: ThreadWorkspaceKind,
+): SidebarThreadSummary[] {
+  return selectSidebarThreadsForProjectRefs(state, refs).filter(
+    (thread) => (thread.workspaceKind ?? "coding") === workspaceKind,
+  );
 }
 
 export function selectBootstrapCompleteForActiveEnvironment(state: AppState): boolean {

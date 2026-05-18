@@ -16,6 +16,7 @@ import type {
   CheckpointRef,
   ProviderInteractionMode,
   RuntimeMode,
+  ThreadWorkspaceKind,
 } from "@t3tools/contracts";
 
 export type SessionPhase = "disconnected" | "connecting" | "ready" | "running";
@@ -102,6 +103,7 @@ export interface Thread {
   modelSelection: ModelSelection;
   runtimeMode: RuntimeMode;
   interactionMode: ProviderInteractionMode;
+  workspaceKind?: ThreadWorkspaceKind | undefined;
   session: ThreadSession | null;
   messages: ChatMessage[];
   proposedPlans: ProposedPlan[];
@@ -126,6 +128,7 @@ export interface ThreadShell {
   modelSelection: ModelSelection;
   runtimeMode: RuntimeMode;
   interactionMode: ProviderInteractionMode;
+  workspaceKind?: ThreadWorkspaceKind | undefined;
   error: string | null;
   createdAt: string;
   archivedAt: string | null;
@@ -145,6 +148,7 @@ export interface SidebarThreadSummary {
   projectId: ProjectId;
   title: string;
   interactionMode: ProviderInteractionMode;
+  workspaceKind?: ThreadWorkspaceKind | undefined;
   session: ThreadSession | null;
   createdAt: string;
   archivedAt: string | null;

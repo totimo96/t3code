@@ -506,6 +506,9 @@ const makeWsRpcLayer = (currentSessionId: AuthSessionId) =>
                 modelSelection: bootstrap.createThread.modelSelection,
                 runtimeMode: bootstrap.createThread.runtimeMode,
                 interactionMode: bootstrap.createThread.interactionMode,
+                ...(bootstrap.createThread.workspaceKind
+                  ? { workspaceKind: bootstrap.createThread.workspaceKind }
+                  : {}),
                 branch: bootstrap.createThread.branch,
                 worktreePath: bootstrap.createThread.worktreePath,
                 createdAt: bootstrap.createThread.createdAt,

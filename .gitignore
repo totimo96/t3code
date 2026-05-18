@@ -25,4 +25,5 @@ squashfs-root/
 .vercel
 .gstack/
 dist-electron/
+scripts/ralph/.last-branch
 .electron-runtime/
