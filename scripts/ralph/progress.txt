@@ -1,0 +1,10 @@
+# Ralph Progress Log
+
+Started: 2026-05-18
+
+## Codebase Patterns
+
+- Project completion checks are `bun fmt`, `bun lint`, and `bun typecheck`.
+- Do not run `bun test`; use `bun run test` when tests are needed.
+
+---

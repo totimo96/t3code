@@ -1,0 +1,167 @@
+{
+  "project": "T3 Code",
+  "branchName": "ralph/design-workspace",
+  "description": "Add the Design Workspace as a separate artifact-based workflow for agentic HTML design iteration.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add Thread Workspace Kind and Workspace Switch",
+      "description": "Persist a coding/design Thread Workspace Kind and expose a sidebar Workspace Switch that filters threads by workspace.",
+      "acceptanceCriteria": [
+        "Thread creation and projection state include a persisted Thread Workspace Kind.",
+        "Existing persisted threads without the field are treated as Coding Workspace threads.",
+        "The sidebar exposes a Workspace Switch with Code and Design modes.",
+        "The sidebar lists only threads matching the active workspace.",
+        "Tests cover migration/defaulting, selectors/projections, and sidebar filtering behavior.",
+        "bun fmt, bun lint, and bun typecheck pass."
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Source issue: docs/design-workspace-issues/001-thread-workspace-kind-and-switch.md"
+    },
+    {
+      "id": "US-002",
+      "title": "Add Design Route and Empty Design Thread Surface",
+      "description": "Add a Design Route for opening Design Threads directly and show an empty design workflow with the existing composer when no artifact exists yet.",
+      "acceptanceCriteria": [
+        "/design/$environmentId/$threadId opens a Design Thread directly.",
+        "Route navigation preserves reload and deep-link behavior for Design Threads.",
+        "Sidebar thread links navigate to chat routes for Coding Workspace threads and design routes for Design Workspace threads.",
+        "Empty Design Threads show a design-specific empty state with the existing composer available.",
+        "Tests cover route helpers and route-aware sidebar navigation.",
+        "bun fmt, bun lint, and bun typecheck pass."
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Blocked by US-001. Source issue: docs/design-workspace-issues/002-design-route-empty-thread.md"
+    },
+    {
+      "id": "US-003",
+      "title": "Add Versioned Design Brief",
+      "description": "Add a visible editable Design Brief to Design Threads as versioned Markdown prompt context.",
+      "acceptanceCriteria": [
+        "Design Brief updates are represented as orchestration domain events.",
+        "Server projections expose the current Design Brief and its version metadata for a Design Thread.",
+        "The Design Workspace includes a secondary panel for viewing and editing the Design Brief.",
+        "Updating the Design Brief affects future prompt context but does not mutate existing Design Artifact versions.",
+        "Tests cover event handling, projection snapshots, and UI edit/save behavior.",
+        "bun fmt, bun lint, and bun typecheck pass."
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Blocked by US-002. Source issue: docs/design-workspace-issues/003-versioned-design-brief.md"
+    },
+    {
+      "id": "US-004",
+      "title": "Add Design Artifact Store and Sandboxed Canvas",
+      "description": "Add Design Artifact events, projections, contracts, and a sandboxed iframe Design Canvas for the current Standalone Design Document.",
+      "acceptanceCriteria": [
+        "Design Artifact creation/version state is recorded through orchestration domain events.",
+        "Projection read models expose the current artifact version for a Design Thread.",
+        "The Design Canvas renders the current Standalone Design Document in a sandboxed iframe.",
+        "Generated HTML is not injected directly into the T3 Code DOM.",
+        "Tests cover artifact projections, snapshot decoding, and sandbox rendering behavior.",
+        "bun fmt, bun lint, and bun typecheck pass."
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Blocked by US-002. Source issue: docs/design-workspace-issues/004-artifact-store-sandboxed-canvas.md"
+    },
+    {
+      "id": "US-005",
+      "title": "Add Design Assets for Images",
+      "description": "Add server-stored Design Assets so Design Artifacts can include reproducible images.",
+      "acceptanceCriteria": [
+        "Design Assets are persisted server-side and associated with a Design Thread or Design Artifact.",
+        "The UI supports adding an image asset through at least one explicit path.",
+        "Standalone Design Documents can reference stored Design Assets through controlled asset URLs.",
+        "Saved artifacts do not depend on arbitrary third-party image URLs.",
+        "Tests cover asset persistence, URL access control, and artifact rendering with images.",
+        "bun fmt, bun lint, and bun typecheck pass."
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Blocked by US-004. Source issue: docs/design-workspace-issues/005-design-assets-images.md"
+    },
+    {
+      "id": "US-006",
+      "title": "Create Design Artifact from Explicit Action",
+      "description": "Add an explicit action that persists response HTML as a versioned Design Artifact without auto-detecting arbitrary chat code blocks.",
+      "acceptanceCriteria": [
+        "A user can manually create a Design Artifact from visible response HTML.",
+        "A structured agent action can create a Design Artifact.",
+        "Artifact creation stores a complete Standalone Design Document plus version metadata.",
+        "Chat HTML snippets are not automatically persisted without an explicit action.",
+        "Tests cover manual creation, structured creation, and non-creation from arbitrary code blocks.",
+        "bun fmt, bun lint, and bun typecheck pass."
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Blocked by US-004. Source issue: docs/design-workspace-issues/006-create-design-artifact-action.md"
+    },
+    {
+      "id": "US-007",
+      "title": "Add Click and Box Design Targeting",
+      "description": "Add Click Targeting and Box Targeting for selecting Design Targets in rendered Design Artifacts and constructing Target Prompt Context.",
+      "acceptanceCriteria": [
+        "Users can create a Design Target by clicking an element in the sandboxed artifact preview.",
+        "Users can create a Design Target by drawing a rectangular region over the artifact preview.",
+        "Target anchors include render geometry and DOM context.",
+        "Target Prompt Context includes the current artifact, target anchor, local DOM/text/geometry, optional visual crop, and Design Brief when present.",
+        "Tests cover selection state, iframe bridge messaging, and Target Prompt Context construction.",
+        "bun fmt, bun lint, and bun typecheck pass."
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Blocked by US-004. Source issue: docs/design-workspace-issues/007-click-box-targeting.md"
+    },
+    {
+      "id": "US-008",
+      "title": "Generate and Accept Design Variants",
+      "description": "Generate complete Design Variant candidates from a Design Target and accept one as the current Design Artifact version.",
+      "acceptanceCriteria": [
+        "A target prompt generates three Design Variants by default.",
+        "Each Design Variant references its parent artifact version and Design Target.",
+        "Variant previews render as complete Standalone Design Documents.",
+        "Accept Design Variant promotes the chosen variant to the current artifact version without writing project files.",
+        "Tests cover variant generation requests, projection updates, preview rendering, and accept behavior.",
+        "bun fmt, bun lint, and bun typecheck pass."
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Blocked by US-007. Source issue: docs/design-workspace-issues/008-generate-accept-variants.md"
+    },
+    {
+      "id": "US-009",
+      "title": "Apply Design Artifact as Coding Handoff",
+      "description": "Implement Apply Design Artifact as a Coding Handoff to a Coding Thread instead of directly writing project files.",
+      "acceptanceCriteria": [
+        "Apply Design Artifact does not directly write project files.",
+        "Applying creates or routes to a Coding Thread.",
+        "The Coding Handoff includes the current Design Artifact, Design Brief, and useful version context.",
+        "The generated Coding Thread prompt asks the agent to implement the artifact in project files.",
+        "Tests cover handoff creation, route behavior, and prompt/context construction.",
+        "bun fmt, bun lint, and bun typecheck pass."
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Blocked by US-008. Source issue: docs/design-workspace-issues/009-apply-artifact-coding-handoff.md"
+    },
+    {
+      "id": "US-010",
+      "title": "Defer Manual Style Controls Behind Versioned Artifact Changes",
+      "description": "Create the follow-up design/spec decision for Manual Style Controls and document how future manual changes become versioned artifact changes.",
+      "acceptanceCriteria": [
+        "Decide the first supported Manual Style Controls.",
+        "Define how manual changes become versioned Design Artifact changes.",
+        "Confirm how manual edits interact with Design Brief, Target Prompt Context, and variants.",
+        "Document any resulting domain terms or ADRs.",
+        "No V1 implementation relies on untracked direct DOM edits.",
+        "bun fmt, bun lint, and bun typecheck pass."
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Blocked by US-008. Source issue: docs/design-workspace-issues/010-manual-style-controls-spec.md"
+    }
+  ]
+}
