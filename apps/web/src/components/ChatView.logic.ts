@@ -232,16 +232,201 @@ export interface DesignCanvasIframeProps {
   readonly srcDoc: string;
 }
 
+export type DesignTargetMode = "click" | "box";
+
+export interface DesignTargetGeometry {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly viewportWidth: number;
+  readonly viewportHeight: number;
+}
+
+export interface DesignTargetDomContext {
+  readonly tagName: string;
+  readonly id: string | null;
+  readonly className: string | null;
+  readonly selector: string;
+  readonly text: string | null;
+  readonly ariaLabel: string | null;
+}
+
+export interface DesignTargetAnchor {
+  readonly mode: DesignTargetMode;
+  readonly geometry: DesignTargetGeometry;
+  readonly domContext: DesignTargetDomContext | null;
+}
+
+export interface DesignTargetBridgeMessage {
+  readonly source: "t3-design-canvas";
+  readonly type: "design-target-selected";
+  readonly anchor: DesignTargetAnchor;
+}
+
+const DESIGN_TARGET_BRIDGE_SCRIPT = String.raw`
+(() => {
+  const SOURCE = "t3-design-canvas";
+  let mode = "click";
+  let dragStart = null;
+  let dragging = false;
+
+  const round = (value) => Math.round(Number(value || 0) * 100) / 100;
+  const geometryFromRect = (rect) => ({
+    x: round(rect.x),
+    y: round(rect.y),
+    width: round(rect.width),
+    height: round(rect.height),
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
+  });
+  const selectorFor = (element) => {
+    if (!element || element.nodeType !== 1) return "";
+    if (element.id) return "#" + CSS.escape(element.id);
+    const parts = [];
+    let current = element;
+    while (current && current.nodeType === 1 && current !== document.body && parts.length < 5) {
+      let part = current.tagName.toLowerCase();
+      if (current.classList.length > 0) {
+        part += "." + Array.from(current.classList).slice(0, 3).map((name) => CSS.escape(name)).join(".");
+      }
+      const parent = current.parentElement;
+      if (parent) {
+        const siblings = Array.from(parent.children).filter((child) => child.tagName === current.tagName);
+        if (siblings.length > 1) part += ":nth-of-type(" + (siblings.indexOf(current) + 1) + ")";
+      }
+      parts.unshift(part);
+      current = parent;
+    }
+    return parts.join(" > ") || element.tagName.toLowerCase();
+  };
+  const domContextFor = (element) => {
+    if (!element || element.nodeType !== 1) return null;
+    const text = (element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
+    const className = typeof element.className === "string" ? element.className.trim() : "";
+    return {
+      tagName: element.tagName.toLowerCase(),
+      id: element.id || null,
+      className: className || null,
+      selector: selectorFor(element),
+      text: text ? text.slice(0, 500) : null,
+      ariaLabel: element.getAttribute("aria-label") || null,
+    };
+  };
+  const postAnchor = (anchor) => {
+    window.parent.postMessage({ source: SOURCE, type: "design-target-selected", anchor }, "*");
+  };
+  window.addEventListener("message", (event) => {
+    const data = event.data;
+    if (!data || data.source !== "t3-design-canvas-host" || data.type !== "set-target-mode") return;
+    mode = data.mode === "box" ? "box" : "click";
+  });
+  document.addEventListener("click", (event) => {
+    if (mode !== "click") return;
+    event.preventDefault();
+    event.stopPropagation();
+    const element = event.target;
+    postAnchor({
+      mode: "click",
+      geometry: geometryFromRect(element.getBoundingClientRect()),
+      domContext: domContextFor(element),
+    });
+  }, true);
+  document.addEventListener("pointerdown", (event) => {
+    if (mode !== "box") return;
+    dragStart = { x: event.clientX, y: event.clientY };
+    dragging = true;
+    event.preventDefault();
+  }, true);
+  document.addEventListener("pointerup", (event) => {
+    if (mode !== "box" || !dragStart || !dragging) return;
+    dragging = false;
+    const x = Math.min(dragStart.x, event.clientX);
+    const y = Math.min(dragStart.y, event.clientY);
+    const width = Math.abs(event.clientX - dragStart.x);
+    const height = Math.abs(event.clientY - dragStart.y);
+    const element = document.elementFromPoint(x + width / 2, y + height / 2);
+    postAnchor({
+      mode: "box",
+      geometry: {
+        x: round(x),
+        y: round(y),
+        width: round(width),
+        height: round(height),
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      },
+      domContext: domContextFor(element),
+    });
+    dragStart = null;
+    event.preventDefault();
+  }, true);
+})();`;
+
+function injectDesignTargetBridge(html: string): string {
+  const bridge = `<script data-t3-design-target-bridge="true">${DESIGN_TARGET_BRIDGE_SCRIPT}</script>`;
+  if (html.includes("data-t3-design-target-bridge=")) {
+    return html;
+  }
+  if (/<\/body\s*>/i.test(html)) {
+    return html.replace(/<\/body\s*>/i, `${bridge}</body>`);
+  }
+  return `${html}${bridge}`;
+}
+
 export function designCanvasIframeProps(
   artifact: NonNullable<Thread["designArtifact"]>,
+  options?: { readonly targetBridge?: boolean },
 ): DesignCanvasIframeProps {
+  const srcDoc = options?.targetBridge ? injectDesignTargetBridge(artifact.html) : artifact.html;
   return {
     key: `${artifact.version}-${artifact.updatedAt}`,
     title: "Design Artifact",
     sandbox: "allow-scripts",
     referrerPolicy: "no-referrer",
-    srcDoc: artifact.html,
+    srcDoc,
   };
+}
+
+export function isDesignTargetBridgeMessage(value: unknown): value is DesignTargetBridgeMessage {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Partial<DesignTargetBridgeMessage>;
+  return (
+    record.source === "t3-design-canvas" &&
+    record.type === "design-target-selected" &&
+    Boolean(record.anchor) &&
+    (record.anchor?.mode === "click" || record.anchor?.mode === "box")
+  );
+}
+
+export function buildTargetPromptContext(input: {
+  readonly artifact: NonNullable<Thread["designArtifact"]>;
+  readonly anchor: DesignTargetAnchor;
+  readonly designBriefMarkdown: string | null;
+}): string {
+  const { artifact, anchor } = input;
+  const dom = anchor.domContext;
+  const brief = input.designBriefMarkdown?.trim();
+  return [
+    "Target Prompt Context:",
+    `- Artifact version: ${artifact.version}`,
+    `- Target mode: ${anchor.mode}`,
+    `- Render geometry: x=${anchor.geometry.x}, y=${anchor.geometry.y}, width=${anchor.geometry.width}, height=${anchor.geometry.height}, viewport=${anchor.geometry.viewportWidth}x${anchor.geometry.viewportHeight}`,
+    dom
+      ? `- DOM context: ${dom.selector} (${dom.tagName}${dom.id ? `#${dom.id}` : ""}${dom.className ? `.${dom.className.split(/\s+/).join(".")}` : ""})`
+      : "- DOM context: none",
+    dom?.ariaLabel ? `- ARIA label: ${dom.ariaLabel}` : null,
+    dom?.text ? `- Local text: ${dom.text}` : null,
+    "- Visual crop: not captured",
+    brief ? ["", "Design Brief:", brief].join("\n") : null,
+    "",
+    "Current Standalone Design Document:",
+    artifact.html,
+    "",
+    "Revise this target while preserving the rest of the standalone design document.",
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
 }
 
 export function threadHasStarted(thread: Thread | null | undefined): boolean {

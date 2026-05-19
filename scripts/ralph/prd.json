@@ -112,7 +112,7 @@
         "bun fmt, bun lint, and bun typecheck pass."
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Blocked by US-004. Source issue: docs/design-workspace-issues/007-click-box-targeting.md"
     },
     {

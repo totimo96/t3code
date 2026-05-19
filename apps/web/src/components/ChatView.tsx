@@ -104,7 +104,13 @@ import { BranchToolbar } from "./BranchToolbar";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import PlanSidebar from "./PlanSidebar";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
-import { ChevronDownIcon, TriangleAlertIcon, WifiOffIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  MousePointer2Icon,
+  ScanIcon,
+  TriangleAlertIcon,
+  WifiOffIcon,
+} from "lucide-react";
 import { cn, randomUUID } from "~/lib/utils";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { decodeProjectScriptKeybindingRule } from "~/lib/projectScriptKeybindings";
@@ -160,13 +166,17 @@ import { ThreadErrorBanner } from "./chat/ThreadErrorBanner";
 import { ComposerBannerStack, type ComposerBannerStackItem } from "./chat/ComposerBannerStack";
 import {
   MAX_HIDDEN_MOUNTED_TERMINAL_THREADS,
+  buildTargetPromptContext,
   buildExpiredTerminalContextToastCopy,
   buildLocalDraftThread,
   collectUserMessageBlobPreviewUrls,
   createLocalDispatchSnapshot,
   deriveComposerSendState,
+  type DesignTargetAnchor,
+  type DesignTargetMode,
   designCanvasIframeProps,
   hasServerAcknowledgedLocalDispatch,
+  isDesignTargetBridgeMessage,
   LAST_INVOKED_SCRIPT_BY_PROJECT_KEY,
   LastInvokedScriptByProjectSchema,
   type LocalDispatchSnapshot,
@@ -227,7 +237,48 @@ function appendDesignBriefToPrompt(prompt: string, designBriefMarkdown: string |
   ].join("\n");
 }
 
-function DesignCanvas({ artifact }: { readonly artifact: Thread["designArtifact"] }) {
+function DesignCanvas({
+  artifact,
+  designBriefMarkdown,
+  onTargetPromptContext,
+}: {
+  readonly artifact: Thread["designArtifact"];
+  readonly designBriefMarkdown: string | null;
+  readonly onTargetPromptContext: (context: string) => void;
+}) {
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [targetMode, setTargetMode] = useState<DesignTargetMode>("click");
+  const [selectedAnchor, setSelectedAnchor] = useState<DesignTargetAnchor | null>(null);
+
+  useEffect(() => {
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        source: "t3-design-canvas-host",
+        type: "set-target-mode",
+        mode: targetMode,
+      },
+      "*",
+    );
+  }, [targetMode, artifact?.version, artifact?.updatedAt]);
+
+  useEffect(() => {
+    if (!artifact) return;
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      if (!isDesignTargetBridgeMessage(event.data)) return;
+      setSelectedAnchor(event.data.anchor);
+      onTargetPromptContext(
+        buildTargetPromptContext({
+          artifact,
+          anchor: event.data.anchor,
+          designBriefMarkdown,
+        }),
+      );
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [artifact, designBriefMarkdown, onTargetPromptContext]);
+
   if (!artifact) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center bg-[linear-gradient(180deg,color-mix(in_srgb,var(--background)_96%,var(--muted))_0%,var(--background)_100%)] px-6 py-8">
@@ -247,14 +298,53 @@ function DesignCanvas({ artifact }: { readonly artifact: Thread["designArtifact"
     );
   }
 
-  const iframeProps = designCanvasIframeProps(artifact);
+  const iframeProps = designCanvasIframeProps(artifact, { targetBridge: true });
+  const selectedDescription = selectedAnchor
+    ? `${selectedAnchor.mode === "click" ? "Click" : "Box"} target ${Math.round(
+        selectedAnchor.geometry.width,
+      )}x${Math.round(selectedAnchor.geometry.height)} at ${Math.round(
+        selectedAnchor.geometry.x,
+      )}, ${Math.round(selectedAnchor.geometry.y)}`
+    : "No target selected";
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[linear-gradient(180deg,color-mix(in_srgb,var(--background)_96%,var(--muted))_0%,var(--background)_100%)] px-4 py-3">
-      <div className="mb-2 flex shrink-0 items-center justify-between text-xs text-muted-foreground">
-        <span>Design Artifact</span>
-        <span>Version {artifact.version}</span>
+      <div className="mb-2 flex shrink-0 items-center justify-between gap-3 text-xs text-muted-foreground">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="shrink-0">Design Artifact</span>
+          <span className="truncate">{selectedDescription}</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="flex rounded-md border border-border bg-background p-0.5">
+            <button
+              type="button"
+              className={cn(
+                "inline-flex size-7 items-center justify-center rounded-[5px] text-muted-foreground transition-colors hover:text-foreground",
+                targetMode === "click" ? "bg-muted text-foreground" : null,
+              )}
+              title="Click Targeting"
+              aria-label="Click Targeting"
+              onClick={() => setTargetMode("click")}
+            >
+              <MousePointer2Icon className="size-4" />
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "inline-flex size-7 items-center justify-center rounded-[5px] text-muted-foreground transition-colors hover:text-foreground",
+                targetMode === "box" ? "bg-muted text-foreground" : null,
+              )}
+              title="Box Targeting"
+              aria-label="Box Targeting"
+              onClick={() => setTargetMode("box")}
+            >
+              <ScanIcon className="size-4" />
+            </button>
+          </div>
+          <span>Version {artifact.version}</span>
+        </div>
       </div>
       <iframe
+        ref={iframeRef}
         key={iframeProps.key}
         title={iframeProps.title}
         sandbox={iframeProps.sandbox}
@@ -3363,6 +3453,24 @@ export default function ChatView(props: ChatViewProps) {
     [activePendingUserInput],
   );
 
+  const applyDesignTargetPromptContext = useCallback(
+    (context: string) => {
+      const existingPrompt = promptRef.current.trim();
+      const nextPrompt = existingPrompt ? `${existingPrompt}\n\n${context}` : context;
+      promptRef.current = nextPrompt;
+      setComposerDraftPrompt(composerDraftTarget, nextPrompt);
+      composerRef.current?.resetCursorState({
+        cursor: nextPrompt.length,
+        prompt: nextPrompt,
+        detectTrigger: true,
+      });
+      window.requestAnimationFrame(() => {
+        composerRef.current?.focusAtEnd();
+      });
+    },
+    [composerDraftTarget, composerRef, setComposerDraftPrompt],
+  );
+
   const onAdvanceActivePendingUserInput = useCallback(() => {
     if (!activePendingUserInput || !activePendingProgress) {
       return;
@@ -3860,7 +3968,11 @@ export default function ChatView(props: ChatViewProps) {
             {/* Messages — LegendList handles virtualization and scrolling internally */}
             {workspaceSurface === "design" &&
             (activeThread.designArtifact || !threadHasStarted(activeThread)) ? (
-              <DesignCanvas artifact={activeThread.designArtifact ?? null} />
+              <DesignCanvas
+                artifact={activeThread.designArtifact ?? null}
+                designBriefMarkdown={activeThread.designBrief?.markdown ?? null}
+                onTargetPromptContext={applyDesignTargetPromptContext}
+              />
             ) : (
               <MessagesTimeline
                 key={activeThread.id}

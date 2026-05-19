@@ -13,11 +13,13 @@ import { type Thread } from "../types";
 
 import {
   MAX_HIDDEN_MOUNTED_TERMINAL_THREADS,
+  buildTargetPromptContext,
   buildExpiredTerminalContextToastCopy,
   createLocalDispatchSnapshot,
   deriveComposerSendState,
   designCanvasIframeProps,
   hasServerAcknowledgedLocalDispatch,
+  isDesignTargetBridgeMessage,
   reconcileMountedTerminalThreadIds,
   resolveSendEnvMode,
   shouldWriteThreadErrorToCurrentServerThread,
@@ -119,6 +121,88 @@ describe("designCanvasIframeProps", () => {
       updatedAt: "2026-03-12T08:16:00.000Z",
     });
     expect(first.key).not.toBe(second.key);
+  });
+
+  it("can inject the controlled target bridge without allowing same-origin access", () => {
+    const props = designCanvasIframeProps(
+      {
+        html: "<!doctype html><html><body><button>Buy</button></body></html>",
+        version: 1,
+        updatedAt: "2026-03-12T08:15:00.000Z",
+      },
+      { targetBridge: true },
+    );
+
+    expect(props.srcDoc).toContain('data-t3-design-target-bridge="true"');
+    expect(props.srcDoc).toContain('source: "t3-design-canvas"');
+    expect(props.srcDoc).toContain('type: "design-target-selected"');
+    expect(props.sandbox.split(/\s+/)).not.toContain("allow-same-origin");
+  });
+});
+
+describe("design target prompt context", () => {
+  it("recognizes iframe bridge target messages", () => {
+    expect(
+      isDesignTargetBridgeMessage({
+        source: "t3-design-canvas",
+        type: "design-target-selected",
+        anchor: {
+          mode: "click",
+          geometry: {
+            x: 10,
+            y: 20,
+            width: 30,
+            height: 40,
+            viewportWidth: 800,
+            viewportHeight: 600,
+          },
+          domContext: null,
+        },
+      }),
+    ).toBe(true);
+    expect(isDesignTargetBridgeMessage({ source: "other" })).toBe(false);
+  });
+
+  it("builds target prompt context with artifact, anchor, DOM, geometry, and brief", () => {
+    const context = buildTargetPromptContext({
+      artifact: {
+        html: "<!doctype html><html><body><main><button>Buy now</button></main></body></html>",
+        version: 4,
+        updatedAt: "2026-03-12T08:15:00.000Z",
+      },
+      designBriefMarkdown: "Keep the checkout flow calm.",
+      anchor: {
+        mode: "box",
+        geometry: {
+          x: 12,
+          y: 24,
+          width: 180,
+          height: 64,
+          viewportWidth: 1024,
+          viewportHeight: 768,
+        },
+        domContext: {
+          tagName: "button",
+          id: "cta",
+          className: "primary large",
+          selector: "main > button.primary",
+          text: "Buy now",
+          ariaLabel: "Purchase",
+        },
+      },
+    });
+
+    expect(context).toContain("Artifact version: 4");
+    expect(context).toContain("Target mode: box");
+    expect(context).toContain("x=12, y=24, width=180, height=64, viewport=1024x768");
+    expect(context).toContain("DOM context: main > button.primary");
+    expect(context).toContain("Local text: Buy now");
+    expect(context).toContain("Visual crop: not captured");
+    expect(context).toContain("Design Brief:\nKeep the checkout flow calm.");
+    expect(context).toContain("Current Standalone Design Document:");
+    expect(context).toContain(
+      "<!doctype html><html><body><main><button>Buy now</button></main></body></html>",
+    );
   });
 });
 

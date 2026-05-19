@@ -9,6 +9,30 @@ Started: 2026-05-18
 
 ---
 
+## 2026-05-19 09:32 +03:00 - US-007
+
+- Added Click Targeting and Box Targeting controls to the Design Canvas.
+- Injected a controlled iframe bridge into Design Artifact `srcDoc` while keeping the existing `allow-scripts` sandbox without `allow-same-origin`.
+- Captured Design Target anchors with render geometry and DOM context from sandbox messages.
+- Built Target Prompt Context that includes artifact version, full Standalone Design Document HTML, anchor geometry, DOM/text context, visual-crop status, and Design Brief when present.
+- Inserts the generated Target Prompt Context into the existing composer for the next design prompt.
+- Files changed:
+  - `apps/web/src/components/ChatView.tsx`
+  - `apps/web/src/components/ChatView.logic.ts`
+  - `apps/web/src/components/ChatView.logic.test.ts`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- Checks run and result:
+  - `bun fmt`: passed
+  - `bun lint`: passed with existing warnings
+  - `bun typecheck`: passed
+  - `bun run --cwd apps/web test src/components/ChatView.logic.test.ts -t "design target"`: passed
+- Learnings for future iterations:
+  - Keep Design Canvas bridge behavior in `ChatView.logic.ts` so iframe props and prompt-context formatting are unit-testable without mounting the full route.
+  - Target Prompt Context should include the complete Standalone Design Document, not only the artifact version, because variant generation must preserve the whole design.
+
+---
+
 ## 2026-05-19 09:21 +03:00 - US-006
 
 - Added an explicit chat-code action for complete standalone HTML documents in Design Workspace.
