@@ -87,6 +87,37 @@ function sameId(left: string | null | undefined, right: string | null | undefine
   return left === right;
 }
 
+function readStringField(value: unknown, key: string): string | undefined {
+  if (typeof value !== "object" || value === null || !(key in value)) {
+    return undefined;
+  }
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === "string" ? field : undefined;
+}
+
+function extractStructuredDesignArtifactHtml(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const type = readStringField(value, "type") ?? readStringField(value, "action");
+  const toolName = readStringField(value, "toolName") ?? readStringField(value, "tool_name");
+  if (
+    type !== "design.artifact.create" &&
+    type !== "design.artifact.update" &&
+    toolName !== "create_design_artifact" &&
+    toolName !== "update_design_artifact"
+  ) {
+    return undefined;
+  }
+
+  const html =
+    readStringField(value, "html") ??
+    readStringField(value, "documentHtml") ??
+    readStringField(value, "document_html");
+  return html && html.trim().length > 0 ? html : undefined;
+}
+
 function hasAssistantMessageForTurn(
   messages: ReadonlyArray<OrchestrationMessage>,
   turnId: TurnId,
@@ -1609,6 +1640,20 @@ const make = Effect.gen(function* () {
             });
           }
         }
+      }
+
+      const structuredDesignArtifactHtml =
+        event.type === "item.completed"
+          ? extractStructuredDesignArtifactHtml(event.payload.data)
+          : undefined;
+      if (structuredDesignArtifactHtml !== undefined) {
+        yield* orchestrationEngine.dispatch({
+          type: "design.artifact.update",
+          commandId: providerCommandId(event, "design-artifact-update"),
+          threadId: thread.id,
+          html: structuredDesignArtifactHtml,
+          createdAt: now,
+        });
       }
 
       const activities = runtimeEventToActivities(event);

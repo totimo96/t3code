@@ -138,4 +138,43 @@ describe("ChatMarkdown", () => {
       await screen.unmount();
     }
   });
+
+  it("exposes explicit create artifact action for complete HTML fences", async () => {
+    const onCreateDesignArtifact = vi.fn();
+    const html = "<!doctype html><html><body><h1>Landing</h1></body></html>";
+    const screen = await render(
+      <ChatMarkdown
+        text={`\`\`\`html\n${html}\n\`\`\``}
+        cwd="/repo/project"
+        onCreateDesignArtifact={onCreateDesignArtifact}
+      />,
+    );
+
+    try {
+      const button = page.getByRole("button", { name: "Create design artifact" });
+      await expect.element(button).toBeInTheDocument();
+      await button.click();
+      expect(onCreateDesignArtifact).toHaveBeenCalledWith(`${html}\n`);
+    } finally {
+      await screen.unmount();
+    }
+  });
+
+  it("does not expose create artifact action for arbitrary HTML snippets", async () => {
+    const screen = await render(
+      <ChatMarkdown
+        text={"```html\n<div>Example snippet</div>\n```"}
+        cwd="/repo/project"
+        onCreateDesignArtifact={vi.fn()}
+      />,
+    );
+
+    try {
+      await expect
+        .element(page.getByRole("button", { name: "Create design artifact" }))
+        .not.toBeInTheDocument();
+    } finally {
+      await screen.unmount();
+    }
+  });
 });

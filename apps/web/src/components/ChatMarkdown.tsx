@@ -34,6 +34,7 @@ import {
   rewriteMarkdownFileUriHref,
 } from "../markdown-links";
 import { readLocalApi } from "../localApi";
+import { isHtmlFenceLanguage, isStandaloneDesignDocumentHtml } from "../lib/designArtifacts";
 import { cn } from "../lib/utils";
 
 class CodeHighlightErrorBoundary extends React.Component<
@@ -62,6 +63,7 @@ interface ChatMarkdownProps {
   cwd: string | undefined;
   isStreaming?: boolean;
   skills?: ReadonlyArray<Pick<ServerProviderSkill, "name" | "displayName">>;
+  onCreateDesignArtifact?: ((html: string) => void) | undefined;
 }
 
 const EMPTY_MARKDOWN_SKILLS: ReadonlyArray<Pick<ServerProviderSkill, "name" | "displayName">> = [];
@@ -146,7 +148,15 @@ function getHighlighterPromise(language: string): Promise<DiffsHighlighter> {
   return promise;
 }
 
-function MarkdownCodeBlock({ code, children }: { code: string; children: ReactNode }) {
+function MarkdownCodeBlock({
+  code,
+  children,
+  onCreateDesignArtifact,
+}: {
+  code: string;
+  children: ReactNode;
+  onCreateDesignArtifact?: ((html: string) => void) | undefined;
+}) {
   const [copied, setCopied] = useState(false);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleCopy = useCallback(() => {
@@ -189,6 +199,17 @@ function MarkdownCodeBlock({ code, children }: { code: string; children: ReactNo
       >
         {copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
       </button>
+      {onCreateDesignArtifact ? (
+        <button
+          type="button"
+          className="chat-markdown-copy-button right-9 w-auto gap-1 px-2 text-[11px]"
+          onClick={() => onCreateDesignArtifact(code)}
+          title="Create design artifact"
+          aria-label="Create design artifact"
+        >
+          Create artifact
+        </button>
+      ) : null}
       {children}
     </div>
   );
@@ -517,6 +538,7 @@ function ChatMarkdown({
   cwd,
   isStreaming = false,
   skills = EMPTY_MARKDOWN_SKILLS,
+  onCreateDesignArtifact,
 }: ChatMarkdownProps) {
   const { resolvedTheme } = useTheme();
   const diffThemeName = resolveDiffThemeName(resolvedTheme);
@@ -586,8 +608,17 @@ function ChatMarkdown({
           return <pre {...props}>{children}</pre>;
         }
 
+        const canCreateDesignArtifact =
+          onCreateDesignArtifact !== undefined &&
+          !isStreaming &&
+          isHtmlFenceLanguage(codeBlock.className) &&
+          isStandaloneDesignDocumentHtml(codeBlock.code);
+
         return (
-          <MarkdownCodeBlock code={codeBlock.code}>
+          <MarkdownCodeBlock
+            code={codeBlock.code}
+            onCreateDesignArtifact={canCreateDesignArtifact ? onCreateDesignArtifact : undefined}
+          >
             <CodeHighlightErrorBoundary fallback={<pre {...props}>{children}</pre>}>
               <Suspense fallback={<pre {...props}>{children}</pre>}>
                 <SuspenseShikiCodeBlock
@@ -607,6 +638,7 @@ function ChatMarkdown({
       fileLinkParentSuffixByPath,
       isStreaming,
       markdownFileLinkMetaByHref,
+      onCreateDesignArtifact,
       resolvedTheme,
       skills,
     ],

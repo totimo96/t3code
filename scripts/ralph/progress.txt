@@ -9,6 +9,36 @@ Started: 2026-05-18
 
 ---
 
+## 2026-05-19 09:21 +03:00 - US-006
+
+- Added an explicit chat-code action for complete standalone HTML documents in Design Workspace.
+- Routed that action through `design.artifact.update`, preserving versioned Design Artifact metadata.
+- Added structured provider action ingestion for `design.artifact.create`/`design.artifact.update` and matching tool names without auto-persisting arbitrary assistant HTML.
+- Added focused tests for HTML document detection, the manual browser action, structured provider creation, and arbitrary HTML non-creation.
+- Files changed:
+  - `apps/server/src/orchestration/Layers/ProviderRuntimeIngestion.ts`
+  - `apps/server/src/orchestration/Layers/ProviderRuntimeIngestion.test.ts`
+  - `apps/web/src/components/ChatMarkdown.tsx`
+  - `apps/web/src/components/ChatMarkdown.browser.tsx`
+  - `apps/web/src/components/ChatView.tsx`
+  - `apps/web/src/components/chat/MessagesTimeline.tsx`
+  - `apps/web/src/lib/designArtifacts.ts`
+  - `apps/web/src/lib/designArtifacts.test.ts`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- Checks run and result:
+  - `bun fmt`: passed
+  - `bun lint`: passed with existing warnings
+  - `bun typecheck`: passed
+  - `bun run --cwd apps/web test src/lib/designArtifacts.test.ts`: passed
+  - `bun run --cwd apps/web test:browser src/components/ChatMarkdown.browser.tsx -t artifact`: passed after installing Playwright Chromium with the repo script
+  - `bun run --cwd apps/server test src/orchestration/Layers/ProviderRuntimeIngestion.test.ts -t "design artifact"`: passed
+- Learnings for future iterations:
+  - Browser component tests need `bun run --cwd apps/web test:browser ...`; the normal web test include does not pick up `*.browser.tsx`.
+  - Assistant text deltas in provider ingestion tests require the matching `item.completed` event before finalized messages appear in projections.
+
+---
+
 ## 2026-05-18 17:22 +03:00 - US-001
 
 - Implemented Thread Workspace Kind across contracts, server projections, persistence, and the web sidebar.

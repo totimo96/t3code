@@ -83,6 +83,7 @@ interface TimelineRowSharedState {
   workspaceRoot: string | undefined;
   skills: ReadonlyArray<Pick<ServerProviderSkill, "name" | "displayName">>;
   activeThreadEnvironmentId: EnvironmentId;
+  onCreateDesignArtifact: ((html: string) => void) | undefined;
   onRevertUserMessage: (messageId: MessageId) => void;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   onOpenTurnDiff: (turnId: TurnId, filePath?: string) => void;
@@ -125,6 +126,7 @@ interface MessagesTimelineProps {
   timestampFormat: TimestampFormat;
   workspaceRoot: string | undefined;
   skills?: ReadonlyArray<Pick<ServerProviderSkill, "name" | "displayName">>;
+  onCreateDesignArtifact?: ((html: string) => void) | undefined;
   onIsAtEndChange: (isAtEnd: boolean) => void;
 }
 
@@ -154,6 +156,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   timestampFormat,
   workspaceRoot,
   skills = EMPTY_TIMELINE_SKILLS,
+  onCreateDesignArtifact,
   onIsAtEndChange,
 }: MessagesTimelineProps) {
   const rawRows = useMemo(
@@ -217,6 +220,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       workspaceRoot,
       skills,
       activeThreadEnvironmentId,
+      onCreateDesignArtifact,
       onRevertUserMessage,
       onImageExpand,
       onOpenTurnDiff,
@@ -229,6 +233,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       workspaceRoot,
       skills,
       activeThreadEnvironmentId,
+      onCreateDesignArtifact,
       onRevertUserMessage,
       onImageExpand,
       onOpenTurnDiff,
@@ -421,6 +426,7 @@ function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "mess
           cwd={ctx.markdownCwd}
           isStreaming={Boolean(row.message.streaming)}
           skills={ctx.skills}
+          onCreateDesignArtifact={ctx.onCreateDesignArtifact}
         />
         <AssistantChangedFilesSection
           turnSummary={row.assistantTurnDiffSummary}

@@ -2254,6 +2254,40 @@ export default function ChatView(props: ChatViewProps) {
     },
     [environmentId],
   );
+
+  const createDesignArtifactFromHtml = useCallback(
+    async (html: string) => {
+      if (!activeThread) return;
+      const api = readEnvironmentApi(environmentId);
+      if (!api) return;
+
+      try {
+        await api.orchestration.dispatchCommand({
+          type: "design.artifact.update",
+          commandId: newCommandId(),
+          threadId: activeThread.id,
+          html,
+          createdAt: new Date().toISOString(),
+        });
+        toastManager.add({
+          type: "success",
+          title: "Design artifact created",
+          description: "The current design canvas was updated.",
+        });
+      } catch (error) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Could not create design artifact",
+            description:
+              error instanceof Error ? error.message : "The design artifact could not be saved.",
+          }),
+        );
+      }
+    },
+    [activeThread, environmentId],
+  );
+
   const saveProjectScript = useCallback(
     async (input: NewProjectScriptInput) => {
       if (!activeProject) return;
@@ -3851,6 +3885,9 @@ export default function ChatView(props: ChatViewProps) {
                 timestampFormat={timestampFormat}
                 workspaceRoot={activeWorkspaceRoot}
                 skills={activeProviderStatus?.skills ?? EMPTY_PROVIDER_SKILLS}
+                onCreateDesignArtifact={
+                  workspaceSurface === "design" ? createDesignArtifactFromHtml : undefined
+                }
                 onIsAtEndChange={onIsAtEndChange}
               />
             )}

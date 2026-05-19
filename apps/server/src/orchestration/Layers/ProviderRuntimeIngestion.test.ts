@@ -360,6 +360,88 @@ describe("ProviderRuntimeIngestion", () => {
     expect(thread.session?.lastError).toBe("turn failed");
   });
 
+  it("creates a design artifact from a structured provider action", async () => {
+    const harness = await createHarness();
+    const now = "2026-01-01T00:00:00.000Z";
+    const html = "<!doctype html><html><body><h1>Design</h1></body></html>";
+
+    harness.emit({
+      type: "item.completed",
+      eventId: asEventId("evt-design-artifact-action"),
+      provider: ProviderDriverKind.make("codex"),
+      threadId: asThreadId("thread-1"),
+      createdAt: now,
+      itemId: asItemId("item-design-artifact"),
+      payload: {
+        itemType: "dynamic_tool_call",
+        status: "completed",
+        title: "Create design artifact",
+        data: {
+          type: "design.artifact.create",
+          html,
+        },
+      },
+    });
+
+    const thread = await waitForThread(
+      harness.readModel,
+      (entry) => entry.designArtifact?.html === html,
+    );
+
+    expect(thread.designArtifact).toEqual({
+      html,
+      version: 1,
+      updatedAt: now,
+    });
+  });
+
+  it("does not create a design artifact from arbitrary assistant HTML text", async () => {
+    const harness = await createHarness();
+    const now = "2026-01-01T00:00:00.000Z";
+
+    harness.emit({
+      type: "turn.started",
+      eventId: asEventId("evt-assistant-html-turn-started"),
+      provider: ProviderDriverKind.make("codex"),
+      threadId: asThreadId("thread-1"),
+      createdAt: now,
+      turnId: asTurnId("turn-html"),
+    });
+
+    harness.emit({
+      type: "content.delta",
+      eventId: asEventId("evt-assistant-html-delta"),
+      provider: ProviderDriverKind.make("codex"),
+      threadId: asThreadId("thread-1"),
+      createdAt: now,
+      turnId: asTurnId("turn-html"),
+      itemId: asItemId("item-assistant-html"),
+      payload: {
+        streamKind: "assistant_text",
+        delta: "```html\n<!doctype html><html><body><h1>Not automatic</h1></body></html>\n```",
+      },
+    });
+
+    harness.emit({
+      type: "item.completed",
+      eventId: asEventId("evt-assistant-html-completed"),
+      provider: ProviderDriverKind.make("codex"),
+      threadId: asThreadId("thread-1"),
+      createdAt: now,
+      turnId: asTurnId("turn-html"),
+      itemId: asItemId("item-assistant-html"),
+      payload: {
+        itemType: "assistant_message",
+        status: "completed",
+      },
+    });
+
+    const thread = await waitForThread(harness.readModel, (entry) =>
+      entry.messages.some((message) => message.text.includes("<!doctype html>")),
+    );
+    expect(thread.designArtifact).toBeNull();
+  });
+
   it("applies provider session.state.changed transitions directly", async () => {
     const harness = await createHarness();
     const waitingAt = "2026-01-01T00:00:00.000Z";
