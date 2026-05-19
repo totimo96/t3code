@@ -13,11 +13,14 @@ import { type Thread } from "../types";
 
 import {
   MAX_HIDDEN_MOUNTED_TERMINAL_THREADS,
+  buildCodingHandoffPrompt,
+  buildDesignVariantGenerationPrompt,
   buildTargetPromptContext,
   buildExpiredTerminalContextToastCopy,
   createLocalDispatchSnapshot,
   deriveComposerSendState,
   designCanvasIframeProps,
+  generateDesignVariantCandidates,
   hasServerAcknowledgedLocalDispatch,
   isDesignTargetBridgeMessage,
   reconcileMountedTerminalThreadIds,
@@ -203,6 +206,82 @@ describe("design target prompt context", () => {
     expect(context).toContain(
       "<!doctype html><html><body><main><button>Buy now</button></main></body></html>",
     );
+  });
+});
+
+describe("design variants", () => {
+  const artifact = {
+    html: "<!doctype html><html><body><main><button>Buy now</button></main></body></html>",
+    version: 4,
+    updatedAt: "2026-03-12T08:15:00.000Z",
+  };
+  const anchor = {
+    mode: "click" as const,
+    geometry: {
+      x: 12,
+      y: 24,
+      width: 180,
+      height: 64,
+      viewportWidth: 1024,
+      viewportHeight: 768,
+    },
+    domContext: {
+      tagName: "button",
+      id: "cta",
+      className: "primary large",
+      selector: "main > button.primary",
+      text: "Buy now",
+      ariaLabel: "Purchase",
+    },
+  };
+
+  it("builds a request for three complete standalone design variants by default", () => {
+    const prompt = buildDesignVariantGenerationPrompt({
+      artifact,
+      anchor,
+      instruction: "Make the call to action quieter.",
+      designBriefMarkdown: "Keep the checkout flow calm.",
+    });
+
+    expect(prompt).toContain("Generate 3 Design Variants");
+    expect(prompt).toContain("full HTML document");
+    expect(prompt).toContain("Make the call to action quieter.");
+    expect(prompt).toContain("Current Standalone Design Document:");
+  });
+
+  it("creates three complete variant candidates tied to the parent artifact and target", () => {
+    const variants = generateDesignVariantCandidates({
+      artifact,
+      anchor,
+      instruction: "Try calmer button treatments.",
+      designBriefMarkdown: null,
+      createdAt: "2026-03-12T09:00:00.000Z",
+    });
+
+    expect(variants).toHaveLength(3);
+    expect(variants[0]?.parentArtifactVersion).toBe(4);
+    expect(variants[0]?.targetAnchor).toEqual(anchor);
+    expect(variants[0]?.html).toContain("<!doctype html>");
+    expect(variants[0]?.html).toContain("data-t3-design-variant");
+    expect(variants[0]?.prompt).toContain("Generate 3 Design Variants");
+  });
+});
+
+describe("coding handoff prompt", () => {
+  it("includes the current artifact, version context, and design brief", () => {
+    const prompt = buildCodingHandoffPrompt({
+      artifact: {
+        html: "<!doctype html><html><body><h1>Dashboard</h1></body></html>",
+        version: 7,
+        updatedAt: "2026-03-12T08:15:00.000Z",
+      },
+      designBriefMarkdown: "Use compact operational UI.",
+    });
+
+    expect(prompt).toContain("Implement this Design Artifact in the project files.");
+    expect(prompt).toContain("Design Artifact version: 7");
+    expect(prompt).toContain("Design Brief:\nUse compact operational UI.");
+    expect(prompt).toContain("<!doctype html><html><body><h1>Dashboard</h1></body></html>");
   });
 });
 

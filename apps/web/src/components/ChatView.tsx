@@ -166,15 +166,19 @@ import { ThreadErrorBanner } from "./chat/ThreadErrorBanner";
 import { ComposerBannerStack, type ComposerBannerStackItem } from "./chat/ComposerBannerStack";
 import {
   MAX_HIDDEN_MOUNTED_TERMINAL_THREADS,
+  buildCodingHandoffPrompt,
+  buildDesignVariantGenerationPrompt,
   buildTargetPromptContext,
   buildExpiredTerminalContextToastCopy,
   buildLocalDraftThread,
   collectUserMessageBlobPreviewUrls,
   createLocalDispatchSnapshot,
   deriveComposerSendState,
+  type DesignVariantCandidate,
   type DesignTargetAnchor,
   type DesignTargetMode,
   designCanvasIframeProps,
+  generateDesignVariantCandidates,
   hasServerAcknowledgedLocalDispatch,
   isDesignTargetBridgeMessage,
   LAST_INVOKED_SCRIPT_BY_PROJECT_KEY,
@@ -241,14 +245,20 @@ function DesignCanvas({
   artifact,
   designBriefMarkdown,
   onTargetPromptContext,
+  onAcceptVariant,
+  onApplyArtifact,
 }: {
   readonly artifact: Thread["designArtifact"];
   readonly designBriefMarkdown: string | null;
   readonly onTargetPromptContext: (context: string) => void;
+  readonly onAcceptVariant: (variant: DesignVariantCandidate) => void;
+  readonly onApplyArtifact: () => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [targetMode, setTargetMode] = useState<DesignTargetMode>("click");
   const [selectedAnchor, setSelectedAnchor] = useState<DesignTargetAnchor | null>(null);
+  const [variantInstruction, setVariantInstruction] = useState("");
+  const [variants, setVariants] = useState<DesignVariantCandidate[]>([]);
 
   useEffect(() => {
     iframeRef.current?.contentWindow?.postMessage(
@@ -267,6 +277,7 @@ function DesignCanvas({
       if (event.source !== iframeRef.current?.contentWindow) return;
       if (!isDesignTargetBridgeMessage(event.data)) return;
       setSelectedAnchor(event.data.anchor);
+      setVariants([]);
       onTargetPromptContext(
         buildTargetPromptContext({
           artifact,
@@ -299,6 +310,15 @@ function DesignCanvas({
   }
 
   const iframeProps = designCanvasIframeProps(artifact, { targetBridge: true });
+  const variantPrompt =
+    selectedAnchor === null
+      ? null
+      : buildDesignVariantGenerationPrompt({
+          artifact,
+          anchor: selectedAnchor,
+          instruction: variantInstruction,
+          designBriefMarkdown,
+        });
   const selectedDescription = selectedAnchor
     ? `${selectedAnchor.mode === "click" ? "Click" : "Box"} target ${Math.round(
         selectedAnchor.geometry.width,
@@ -341,17 +361,108 @@ function DesignCanvas({
             </button>
           </div>
           <span>Version {artifact.version}</span>
+          <Button size="xs" variant="outline" onClick={onApplyArtifact}>
+            Apply
+          </Button>
         </div>
       </div>
-      <iframe
-        ref={iframeRef}
-        key={iframeProps.key}
-        title={iframeProps.title}
-        sandbox={iframeProps.sandbox}
-        referrerPolicy={iframeProps.referrerPolicy}
-        srcDoc={iframeProps.srcDoc}
-        className="min-h-0 flex-1 rounded-md border border-border bg-white shadow-sm"
-      />
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_18rem] gap-3">
+        <iframe
+          ref={iframeRef}
+          key={iframeProps.key}
+          title={iframeProps.title}
+          sandbox={iframeProps.sandbox}
+          referrerPolicy={iframeProps.referrerPolicy}
+          srcDoc={iframeProps.srcDoc}
+          className="min-h-0 rounded-md border border-border bg-white shadow-sm"
+        />
+        <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-md border border-border bg-card/40 p-3">
+          <div className="space-y-2">
+            <div>
+              <h3 className="text-xs font-medium text-foreground">Design Variants</h3>
+              <p className="mt-1 text-[0.6875rem] leading-4 text-muted-foreground">
+                {selectedAnchor
+                  ? "Generate three complete artifact candidates for the selected target."
+                  : "Select a target in the preview first."}
+              </p>
+            </div>
+            <textarea
+              className="min-h-20 w-full resize-none rounded-md border border-input bg-background px-2 py-1.5 text-xs leading-5 text-foreground outline-none ring-ring/24 placeholder:text-muted-foreground focus:border-ring focus:ring-[3px]"
+              value={variantInstruction}
+              onChange={(event) => setVariantInstruction(event.target.value)}
+              placeholder="Describe the alternatives to explore..."
+              disabled={!selectedAnchor}
+            />
+            <Button
+              size="xs"
+              disabled={!selectedAnchor}
+              onClick={() => {
+                if (!selectedAnchor) return;
+                setVariants(
+                  generateDesignVariantCandidates({
+                    artifact,
+                    anchor: selectedAnchor,
+                    instruction: variantInstruction,
+                    designBriefMarkdown,
+                    createdAt: new Date().toISOString(),
+                  }),
+                );
+              }}
+            >
+              Generate 3
+            </Button>
+          </div>
+          {variantPrompt ? (
+            <details className="rounded-md border border-border bg-background/70 p-2">
+              <summary className="cursor-pointer text-[0.6875rem] font-medium text-muted-foreground">
+                Prompt
+              </summary>
+              <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-[0.625rem] leading-4 text-muted-foreground">
+                {variantPrompt}
+              </pre>
+            </details>
+          ) : null}
+          <div className="space-y-3">
+            {variants.map((variant) => {
+              const previewProps = designCanvasIframeProps(
+                {
+                  html: variant.html,
+                  version: variant.parentArtifactVersion,
+                  updatedAt: variant.createdAt,
+                },
+                { targetBridge: false },
+              );
+              return (
+                <div
+                  key={variant.id}
+                  className="space-y-2 rounded-md border border-border bg-background p-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-foreground">
+                        {variant.title}
+                      </p>
+                      <p className="text-[0.6875rem] text-muted-foreground">
+                        Parent v{variant.parentArtifactVersion}
+                      </p>
+                    </div>
+                    <Button size="xs" variant="outline" onClick={() => onAcceptVariant(variant)}>
+                      Accept
+                    </Button>
+                  </div>
+                  <iframe
+                    title={`${variant.title} Preview`}
+                    sandbox={previewProps.sandbox}
+                    referrerPolicy={previewProps.referrerPolicy}
+                    srcDoc={previewProps.srcDoc}
+                    className="h-36 w-full rounded border border-border bg-white"
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
@@ -2378,6 +2489,102 @@ export default function ChatView(props: ChatViewProps) {
     [activeThread, environmentId],
   );
 
+  const acceptDesignVariant = useCallback(
+    async (variant: DesignVariantCandidate) => {
+      if (!activeThread) return;
+      const api = readEnvironmentApi(environmentId);
+      if (!api) return;
+
+      try {
+        await api.orchestration.dispatchCommand({
+          type: "design.artifact.update",
+          commandId: newCommandId(),
+          threadId: activeThread.id,
+          html: variant.html,
+          createdAt: new Date().toISOString(),
+        });
+        toastManager.add({
+          type: "success",
+          title: "Design variant accepted",
+          description: `Accepted ${variant.title} as the current design artifact.`,
+        });
+      } catch (error) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Could not accept design variant",
+            description:
+              error instanceof Error ? error.message : "The design variant could not be accepted.",
+          }),
+        );
+      }
+    },
+    [activeThread, environmentId],
+  );
+
+  const applyDesignArtifactAsCodingHandoff = useCallback(async () => {
+    if (!activeThread || !activeProject || !activeThread.designArtifact) return;
+    const api = readEnvironmentApi(environmentId);
+    if (!api) return;
+
+    const createdAt = new Date().toISOString();
+    const handoffThreadId = newThreadId();
+    const title = truncate(`Implement design artifact v${activeThread.designArtifact.version}`);
+    const prompt = buildCodingHandoffPrompt({
+      artifact: activeThread.designArtifact,
+      designBriefMarkdown: activeThread.designBrief?.markdown ?? null,
+    });
+
+    try {
+      await api.orchestration.dispatchCommand({
+        type: "thread.create",
+        commandId: newCommandId(),
+        threadId: handoffThreadId,
+        projectId: activeProject.id,
+        title,
+        modelSelection: activeThread.modelSelection,
+        runtimeMode,
+        interactionMode: "default",
+        workspaceKind: "coding",
+        branch: activeThread.branch,
+        worktreePath: activeThread.worktreePath,
+        createdAt,
+      });
+      await api.orchestration.dispatchCommand({
+        type: "thread.turn.start",
+        commandId: newCommandId(),
+        threadId: handoffThreadId,
+        message: {
+          messageId: newMessageId(),
+          role: "user",
+          text: prompt,
+          attachments: [],
+        },
+        modelSelection: activeThread.modelSelection,
+        titleSeed: title,
+        runtimeMode,
+        interactionMode: "default",
+        createdAt,
+      });
+      await navigate({
+        to: "/$environmentId/$threadId",
+        params: {
+          environmentId: activeThread.environmentId,
+          threadId: handoffThreadId,
+        },
+      });
+    } catch (error) {
+      toastManager.add(
+        stackedThreadToast({
+          type: "error",
+          title: "Could not apply design artifact",
+          description:
+            error instanceof Error ? error.message : "The coding handoff could not be created.",
+        }),
+      );
+    }
+  }, [activeProject, activeThread, environmentId, navigate, runtimeMode]);
+
   const saveProjectScript = useCallback(
     async (input: NewProjectScriptInput) => {
       if (!activeProject) return;
@@ -3972,6 +4179,8 @@ export default function ChatView(props: ChatViewProps) {
                 artifact={activeThread.designArtifact ?? null}
                 designBriefMarkdown={activeThread.designBrief?.markdown ?? null}
                 onTargetPromptContext={applyDesignTargetPromptContext}
+                onAcceptVariant={(variant) => void acceptDesignVariant(variant)}
+                onApplyArtifact={() => void applyDesignArtifactAsCodingHandoff()}
               />
             ) : (
               <MessagesTimeline

@@ -264,6 +264,16 @@ export interface DesignTargetBridgeMessage {
   readonly anchor: DesignTargetAnchor;
 }
 
+export interface DesignVariantCandidate {
+  readonly id: string;
+  readonly title: string;
+  readonly html: string;
+  readonly parentArtifactVersion: number;
+  readonly targetAnchor: DesignTargetAnchor;
+  readonly prompt: string;
+  readonly createdAt: string;
+}
+
 const DESIGN_TARGET_BRIDGE_SCRIPT = String.raw`
 (() => {
   const SOURCE = "t3-design-canvas";
@@ -424,6 +434,89 @@ export function buildTargetPromptContext(input: {
     artifact.html,
     "",
     "Revise this target while preserving the rest of the standalone design document.",
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
+}
+
+function appendHiddenDesignVariantMetadata(html: string, metadata: string): string {
+  const marker = `<template data-t3-design-variant>${metadata}</template>`;
+  if (/<\/body\s*>/i.test(html)) {
+    return html.replace(/<\/body\s*>/i, `${marker}</body>`);
+  }
+  return `${html}${marker}`;
+}
+
+export function buildDesignVariantGenerationPrompt(input: {
+  readonly artifact: NonNullable<Thread["designArtifact"]>;
+  readonly anchor: DesignTargetAnchor;
+  readonly instruction: string;
+  readonly designBriefMarkdown: string | null;
+  readonly variantCount?: number;
+}): string {
+  const variantCount = input.variantCount ?? 3;
+  return [
+    `Generate ${variantCount} Design Variants as complete Standalone Design Documents.`,
+    "Return each variant as a full HTML document, not as a patch or fragment.",
+    "Each variant must preserve the overall design and revise only the selected Design Target.",
+    "",
+    "Instruction:",
+    input.instruction.trim() || "Create distinct visual alternatives for the selected target.",
+    "",
+    buildTargetPromptContext({
+      artifact: input.artifact,
+      anchor: input.anchor,
+      designBriefMarkdown: input.designBriefMarkdown,
+    }),
+  ].join("\n");
+}
+
+export function generateDesignVariantCandidates(input: {
+  readonly artifact: NonNullable<Thread["designArtifact"]>;
+  readonly anchor: DesignTargetAnchor;
+  readonly instruction: string;
+  readonly designBriefMarkdown: string | null;
+  readonly createdAt: string;
+  readonly variantCount?: number;
+}): DesignVariantCandidate[] {
+  const variantCount = input.variantCount ?? 3;
+  const prompt = buildDesignVariantGenerationPrompt(input);
+  return Array.from({ length: variantCount }, (_, index) => {
+    const ordinal = index + 1;
+    const title = `Variant ${ordinal}`;
+    const metadata = [
+      `parentArtifactVersion=${input.artifact.version}`,
+      `targetMode=${input.anchor.mode}`,
+      `variant=${ordinal}`,
+    ].join("; ");
+    return {
+      id: `variant-${input.artifact.version}-${input.createdAt}-${ordinal}`,
+      title,
+      html: appendHiddenDesignVariantMetadata(input.artifact.html, metadata),
+      parentArtifactVersion: input.artifact.version,
+      targetAnchor: input.anchor,
+      prompt,
+      createdAt: input.createdAt,
+    };
+  });
+}
+
+export function buildCodingHandoffPrompt(input: {
+  readonly artifact: NonNullable<Thread["designArtifact"]>;
+  readonly designBriefMarkdown: string | null;
+}): string {
+  const brief = input.designBriefMarkdown?.trim();
+  return [
+    "Implement this Design Artifact in the project files.",
+    "",
+    "Do not treat this as already-applied code. Use the normal coding workflow: inspect the app, edit the relevant files, and leave reviewable diffs.",
+    "",
+    `Design Artifact version: ${input.artifact.version}`,
+    `Design Artifact updated at: ${input.artifact.updatedAt}`,
+    brief ? ["", "Design Brief:", brief].join("\n") : null,
+    "",
+    "Standalone Design Document:",
+    input.artifact.html,
   ]
     .filter((line): line is string => line !== null)
     .join("\n");

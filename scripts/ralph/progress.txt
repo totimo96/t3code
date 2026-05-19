@@ -9,6 +9,49 @@ Started: 2026-05-18
 
 ---
 
+## 2026-05-19 09:55 +03:00 - US-008
+
+- Added Design Variant candidate generation from the selected Design Target on the Design Canvas.
+- Generates three complete Standalone Design Document candidates by default, each carrying parent artifact version and target anchor metadata.
+- Added variant preview iframes using the same sandboxed rendering path.
+- Added Accept Design Variant, which promotes the chosen candidate through the existing `design.artifact.update` orchestration command and does not write project files.
+- Files changed:
+  - `apps/web/src/components/ChatView.tsx`
+  - `apps/web/src/components/ChatView.logic.ts`
+  - `apps/web/src/components/ChatView.logic.test.ts`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- Checks run and result:
+  - `bun fmt`: passed
+  - `bun lint`: passed with existing warnings
+  - `bun typecheck`: passed
+  - `bun run --cwd apps/web test src/components/ChatView.logic.test.ts -t "design variants|coding handoff"`: passed
+- Learnings for future iterations:
+  - Variant candidates can use the existing Design Artifact update path for acceptance; a separate persistence model is not needed until variants must survive reload before acceptance.
+
+---
+
+## 2026-05-19 09:55 +03:00 - US-009
+
+- Added Apply Design Artifact as a Coding Handoff from the Design Canvas.
+- Applying creates a new Coding Workspace thread and starts it with a prompt containing the current Design Artifact, artifact version metadata, and Design Brief when present.
+- The handoff does not write project files directly; normal Coding Thread execution owns implementation diffs.
+- Files changed:
+  - `apps/web/src/components/ChatView.tsx`
+  - `apps/web/src/components/ChatView.logic.ts`
+  - `apps/web/src/components/ChatView.logic.test.ts`
+  - `scripts/ralph/prd.json`
+  - `scripts/ralph/progress.txt`
+- Checks run and result:
+  - `bun fmt`: passed
+  - `bun lint`: passed with existing warnings
+  - `bun typecheck`: passed
+  - `bun run --cwd apps/web test src/components/ChatView.logic.test.ts -t "design variants|coding handoff"`: passed
+- Learnings for future iterations:
+  - Coding Handoff should remain prompt-first and route to a Coding Thread instead of sharing Design Thread state or touching files directly.
+
+---
+
 ## 2026-05-19 09:32 +03:00 - US-007
 
 - Added Click Targeting and Box Targeting controls to the Design Canvas.

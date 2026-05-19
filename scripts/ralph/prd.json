@@ -128,7 +128,7 @@
         "bun fmt, bun lint, and bun typecheck pass."
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Blocked by US-007. Source issue: docs/design-workspace-issues/008-generate-accept-variants.md"
     },
     {
@@ -144,7 +144,7 @@
         "bun fmt, bun lint, and bun typecheck pass."
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Blocked by US-008. Source issue: docs/design-workspace-issues/009-apply-artifact-coding-handoff.md"
     },
     {
